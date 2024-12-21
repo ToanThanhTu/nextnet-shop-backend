@@ -16,9 +16,9 @@ public static class CategoriesEndpoints
     // Advantages:
     // - testability
     // - automatically returning the response type metadata for OpenAPI to describe the endpoint
-    static async Task<IResult> GetAllCategories(AppDbContext db)
+    static async Task<List<Category>> GetAllCategories(AppDbContext db)
     {
-      return TypedResults.Ok(await db.Categories.ToArrayAsync());
+      return await db.Categories.ToListAsync();
     }
 
     static async Task<IResult> GetCategory(int id, AppDbContext db)

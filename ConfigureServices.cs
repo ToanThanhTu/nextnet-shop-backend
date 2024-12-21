@@ -27,9 +27,9 @@ public static class ConfigureServices
     // adds the database context to the dependency injection (DI) container
     builder.Services.AddDbContext<AppDbContext>(opt =>
     {
-      opt.UseInMemoryDatabase("CategoryList");
-      opt.UseInMemoryDatabase("SubCategoryList");
-      opt.UseInMemoryDatabase("ProductList");
+      opt.UseSqlServer(
+        builder.Configuration.GetConnectionString("DefaultConnection")
+      );
     });
 
     // enables displaying database-related exceptions
