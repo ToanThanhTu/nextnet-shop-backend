@@ -1,3 +1,5 @@
+using net_backend;
+
 var builder = WebApplication.CreateBuilder(args);
 builder.AddServices();
 
