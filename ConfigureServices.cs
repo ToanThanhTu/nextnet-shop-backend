@@ -48,7 +48,7 @@ public static class ConfigureServices
         "AllowFrontend",
         policy =>
         {
-          policy.AllowAnyOrigin().AllowAnyMethod().AllowAnyHeader();
+          policy.WithOrigins("http://localhost:3000").AllowAnyMethod().AllowAnyHeader();
         }
       );
     });
