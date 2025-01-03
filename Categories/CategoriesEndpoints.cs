@@ -11,6 +11,7 @@ public static class CategoriesEndpoints
 
         categories.MapGet("/", GetAllCategories);
         categories.MapGet("/{id}", GetCategory);
+        categories.MapGet("/{id}/image", getCategoryImage);
         categories.MapPost("/", CreateCategory);
         categories.MapPut("/{id}", UpdateCategory);
         categories.MapDelete("/{id}", DeleteCategory);
@@ -25,9 +26,10 @@ public static class CategoriesEndpoints
             {
                 Id = c.Id,
                 Title = c.Title,
+                Name = c.Name,
                 Description = c.Description,
                 SubCategories = c.SubCategories
-                .Select(sc => new SubCategoryDTO { Id = sc.Id, Title = sc.Title, Description = sc.Description })
+                .Select(sc => new SubCategoryDTO { Id = sc.Id, Title = sc.Title, Name = sc.Name, Description = sc.Description })
                 .ToList()
             }).ToArrayAsync());
         }
@@ -37,6 +39,16 @@ public static class CategoriesEndpoints
             return await db.Categories.FindAsync(id) is Category category
               ? TypedResults.Ok(category)
               : TypedResults.NotFound();
+        }
+
+        static async Task<IResult> getCategoryImage(int id, AppDbContext db)
+        {
+            var category = await db.Categories.FindAsync(id);
+            if (category is null)
+                return TypedResults.NotFound();
+            if (category.Image is null)
+                return TypedResults.NotFound();
+            return TypedResults.File(category.Image, "image/jpeg");
         }
 
         static async Task<IResult> CreateCategory(
