@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
-using net_backend.Categories;
+using Microsoft.AspNetCore.Mvc;
 using net_backend.Data.Types;
+using Microsoft.AspNetCore.OutputCaching;
 
 namespace net_backend.Products;
 
@@ -10,11 +11,10 @@ public static class ProductsEndpoints
     {
         var products = app.MapGroup("/products");
 
-        products.MapGet("/", GetAllProducts);
-        products.MapGet("/sales", GetOnSaleProducts);
-        products.MapGet("/bestsellers", GetBestSellers);
-        products.MapGet("/categories/{categoryName}", GetProductsByCategoryName);
-        products.MapGet("/subcategories/{subCategoryName}", GetProductsBySubCategoryName);
+        products.MapGet("/all/", GetProducts);
+        products.MapGet("/sales/", GetOnSaleProducts);
+        products.MapGet("/bestsellers/", GetBestSellers);
+        products.MapGet("/search", GetProductsBySearch);
         products.MapGet("/{id}", GetProduct);
         products.MapGet("/{id}/image", GetProductImage);
         products.MapPost("/", CreateProduct);
@@ -25,85 +25,203 @@ public static class ProductsEndpoints
         // Advantages:
         // - testability
         // - automatically returning the response type metadata for OpenAPI to describe the endpoint
-        static async Task<IResult> GetAllProducts(AppDbContext db)
+        static async Task<IResult> GetProducts(
+            [FromQuery] string? category,
+            [FromQuery] string? subcategory,
+            [FromQuery] decimal? priceMin,
+            [FromQuery] decimal? priceMax,
+            [FromQuery] string? sortBy,
+            [FromQuery] int? limit,
+            [FromQuery] int? page,
+            AppDbContext db)
         {
-            return TypedResults.Ok(await db.Products.Select(p => new ProductDTO
+            var query = from product in db.Products
+                        join subCategory in db.SubCategories
+                        on product.SubCategoryId equals subCategory.Id
+                        join cat in db.Categories
+                        on subCategory.CategoryId equals cat.Id
+                        select new
+                        {
+                            product,
+                            subCategoryTitle = subCategory.Title,
+                            categoryTitle = cat.Title
+                        };
+
+            // Filter by SubCategory if exists, otherwise filter by Category
+            if (!string.IsNullOrEmpty(subcategory))
+            {
+                query = query.Where(p => p.subCategoryTitle == subcategory);
+            }
+            else if (!string.IsNullOrEmpty(category))
+            {
+                query = query.Where(p => p.categoryTitle == category);
+            }
+
+            // Filter by Price
+            if (priceMin.HasValue)
+            {
+                query = query.Where(p => p.product.SalePrice >= priceMin.Value);
+            }
+
+            if (priceMax.HasValue)
+            {
+                query = query.Where(p => p.product.SalePrice <= priceMax.Value);
+            }
+
+            // Sorting
+            query = sortBy switch
+            {
+                "priceLowHigh" => query.OrderBy(p => p.product.SalePrice),
+                "priceHighLow" => query.OrderByDescending(p => p.product.SalePrice),
+                _ => query.OrderBy(p => p.product.Id)
+            };
+
+            var totalItems = await query.CountAsync();
+
+            // Pagination
+            int itemsToSkip = (page.GetValueOrDefault(1) - 1) * limit.GetValueOrDefault(12);
+            query = query.Skip(itemsToSkip).Take(limit.GetValueOrDefault(12));
+
+            var products = await query.Select(p => p.product).Select(p => new ProductDTO
             {
                 Id = p.Id,
                 Title = p.Title,
                 Description = p.Description,
                 Price = p.Price,
                 Sale = p.Sale,
+                SalePrice = p.SalePrice,
                 Stock = p.Stock
-            }).ToArrayAsync());
+            }).ToArrayAsync();
+            return TypedResults.Ok(new
+            {
+                products,
+                totalItems
+            });
         }
 
-        static async Task<IResult> GetOnSaleProducts(AppDbContext db)
+        static async Task<IResult> GetOnSaleProducts(
+            [FromQuery] decimal? priceMin,
+            [FromQuery] decimal? priceMax,
+            [FromQuery] string? sortBy,
+            [FromQuery] int? limit,
+            [FromQuery] int? page,
+            AppDbContext db)
         {
-            return TypedResults.Ok(
-              await db.Products.Where(p => p.Sale > 0).ToListAsync()
-            );
+            var query = db.Products.Where(p => p.Sale > 0);
+
+            // Filter by Price
+            if (priceMin.HasValue)
+            {
+                query = query.Where(p => p.SalePrice >= priceMin.Value);
+            }
+
+            if (priceMax.HasValue)
+            {
+                query = query.Where(p => p.SalePrice <= priceMax.Value);
+            }
+
+            // Sorting
+            query = sortBy switch
+            {
+                "priceLowHigh" => query.OrderBy(p => p.SalePrice),
+                "priceHighLow" => query.OrderByDescending(p => p.SalePrice),
+                _ => query.OrderBy(p => p.Id)
+            };
+
+            var totalItems = await query.CountAsync();
+
+            // Pagination
+            int itemsToSkip = (page.GetValueOrDefault(1) - 1) * limit.GetValueOrDefault(12);
+            query = query.Skip(itemsToSkip).Take(limit.GetValueOrDefault(12));
+
+            var products = await query.Select(p => new ProductDTO
+            {
+                Id = p.Id,
+                Title = p.Title,
+                Description = p.Description,
+                Price = p.Price,
+                Sale = p.Sale,
+                SalePrice = p.SalePrice,
+                Stock = p.Stock
+            }).ToArrayAsync();
+            return TypedResults.Ok(new
+            {
+                products,
+                totalItems
+            });
         }
 
-        static async Task<IResult> GetBestSellers(AppDbContext db)
+        static async Task<IResult> GetBestSellers(
+            [FromQuery] decimal? priceMin,
+            [FromQuery] decimal? priceMax,
+            [FromQuery] string? sortBy,
+            [FromQuery] int? limit,
+            [FromQuery] int? page,
+            AppDbContext db)
         {
-            return TypedResults.Ok(
-              await db.Products.OrderByDescending(p => p.Sold).Take(12).Select(p => new ProductDTO
-              {
-                  Id = p.Id,
-                  Title = p.Title,
-                  Description = p.Description,
-                  Price = p.Price,
-                  Sale = p.Sale,
-                  Stock = p.Stock
-              }).ToListAsync()
-            );
+            var query = db.Products.Where(p => p.Sold > 20);
+
+            // Filter by Price
+            if (priceMin.HasValue)
+            {
+                query = query.Where(p => p.SalePrice >= priceMin.Value);
+            }
+
+            if (priceMax.HasValue)
+            {
+                query = query.Where(p => p.SalePrice <= priceMax.Value);
+            }
+
+            // Sorting
+            query = sortBy switch
+            {
+                "priceLowHigh" => query.OrderBy(p => p.SalePrice),
+                "priceHighLow" => query.OrderByDescending(p => p.SalePrice),
+                _ => query.OrderByDescending(p => p.Sold)
+            };
+
+            var totalItems = await query.CountAsync();
+
+            // Pagination
+            int itemsToSkip = (page.GetValueOrDefault(1) - 1) * limit.GetValueOrDefault(12);
+            query = query.Skip(itemsToSkip).Take(limit.GetValueOrDefault(12));
+
+            var products = await query.Select(p => new ProductDTO
+            {
+                Id = p.Id,
+                Title = p.Title,
+                Description = p.Description,
+                Price = p.Price,
+                Sale = p.Sale,
+                SalePrice = p.SalePrice,
+                Stock = p.Stock
+            }).ToArrayAsync();
+            return TypedResults.Ok(new
+            {
+                products,
+                totalItems
+            });
         }
 
-        static async Task<IResult> GetProductsByCategoryName(string categoryName, AppDbContext db)
+        static async Task<IResult> GetProductsBySearch(
+            [FromQuery] string? search,
+            AppDbContext db)
         {
-            //var category = await db.Categories.FirstOrDefaultAsync(c => c.Title == categoryName);
+            var query = db.Products.AsQueryable();
 
-            //if (category is null)
-            //    return TypedResults.NotFound();
+            if (!string.IsNullOrEmpty(search))
+                query = query.Where(p => p.Title.Contains(search) || p.Description != null && p.Description.Contains(search));
 
-            var products = await (from p in db.Products
-                                  join sc in db.SubCategories on p.SubCategoryId equals sc.Id
-                                  join c in db.Categories on sc.CategoryId equals c.Id
-                                  where c.Name == categoryName
-                                  select new ProductDTO
-                                  {
-                                      Id = p.Id,
-                                      Title = p.Title,
-                                      Description = p.Description,
-                                      Price = p.Price,
-                                      Sale = p.Sale,
-                                      Stock = p.Stock
-                                  }).ToListAsync();
-
-            if (products.Count == 0)
-                return TypedResults.NotFound();
-
-            return TypedResults.Ok(products);
-        }
-
-        static async Task<IResult> GetProductsBySubCategoryName(string subCategoryName, AppDbContext db)
-        {
-            var products = await (from p in db.Products
-                                  join sc in db.SubCategories on p.SubCategoryId equals sc.Id
-                                  where sc.Name == subCategoryName
-                                  select new ProductDTO
-                                  {
-                                      Id = p.Id,
-                                      Title = p.Title,
-                                      Description = p.Description,
-                                      Price = p.Price,
-                                      Sale = p.Sale,
-                                      Stock = p.Stock
-                                  }).ToListAsync();
-
-            if (products.Count == 0)
-                return TypedResults.NotFound();
+            var products = await query.Select(p => new ProductDTO
+            {
+                Id = p.Id,
+                Title = p.Title,
+                Description = p.Description,
+                Price = p.Price,
+                Sale = p.Sale,
+                SalePrice = p.SalePrice,
+                Stock = p.Stock
+            }).ToArrayAsync();
 
             return TypedResults.Ok(products);
         }
