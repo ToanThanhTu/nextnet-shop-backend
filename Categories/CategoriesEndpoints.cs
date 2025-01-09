@@ -26,10 +26,15 @@ public static class CategoriesEndpoints
             {
                 Id = c.Id,
                 Title = c.Title,
-                Name = c.Name,
+                Slug = c.Slug,
                 Description = c.Description,
                 SubCategories = c.SubCategories
-                .Select(sc => new SubCategoryDTO { Id = sc.Id, Title = sc.Title, Name = sc.Name, Description = sc.Description })
+                .Select(sc => new SubCategoryDTO { 
+                    Id = sc.Id, 
+                    Title = sc.Title, 
+                    Slug = sc.Slug, 
+                    Description = sc.Description 
+                })
                 .ToList()
             }).ToArrayAsync());
         }

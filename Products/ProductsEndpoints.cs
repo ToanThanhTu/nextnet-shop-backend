@@ -2,6 +2,9 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.Mvc;
 using net_backend.Data.Types;
 using Microsoft.AspNetCore.OutputCaching;
+using System.Xml.Linq;
+using System.Collections.Generic;
+using System.Globalization;
 
 namespace net_backend.Products;
 
@@ -15,11 +18,13 @@ public static class ProductsEndpoints
         products.MapGet("/sales/", GetOnSaleProducts);
         products.MapGet("/bestsellers/", GetBestSellers);
         products.MapGet("/search", GetProductsBySearch);
-        products.MapGet("/{id}", GetProduct);
+        products.MapGet("/recommendations/{productId}", GetProductsRecommendations);
+        products.MapGet("/id/{id}", GetProductById);
+        products.MapGet("/slug/{slug}", GetProductBySlug);
         products.MapGet("/{id}/image", GetProductImage);
         products.MapPost("/", CreateProduct);
-        products.MapPut("/{id}", UpdateProduct);
-        products.MapDelete("/{id}", DeleteProduct);
+        products.MapPut("/id/{id}", UpdateProduct);
+        products.MapDelete("/id/{id}", DeleteProduct);
 
         // Using TypedResults to verify the return type is correct
         // Advantages:
@@ -86,6 +91,7 @@ public static class ProductsEndpoints
             {
                 Id = p.Id,
                 Title = p.Title,
+                Slug = p.Slug,
                 Description = p.Description,
                 Price = p.Price,
                 Sale = p.Sale,
@@ -138,6 +144,7 @@ public static class ProductsEndpoints
             {
                 Id = p.Id,
                 Title = p.Title,
+                Slug = p.Slug,
                 Description = p.Description,
                 Price = p.Price,
                 Sale = p.Sale,
@@ -190,6 +197,7 @@ public static class ProductsEndpoints
             {
                 Id = p.Id,
                 Title = p.Title,
+                Slug = p.Slug,
                 Description = p.Description,
                 Price = p.Price,
                 Sale = p.Sale,
@@ -210,12 +218,13 @@ public static class ProductsEndpoints
             var query = db.Products.AsQueryable();
 
             if (!string.IsNullOrEmpty(search))
-                query = query.Where(p => p.Title.Contains(search) || p.Description != null && p.Description.Contains(search));
+                query = query.Where(p => p.Title.Contains(search) || (p.Description != null && p.Description.Contains(search)));
 
             var products = await query.Select(p => new ProductDTO
             {
                 Id = p.Id,
                 Title = p.Title,
+                Slug = p.Slug,
                 Description = p.Description,
                 Price = p.Price,
                 Sale = p.Sale,
@@ -223,14 +232,101 @@ public static class ProductsEndpoints
                 Stock = p.Stock
             }).ToArrayAsync();
 
+            if (products.Length == 0)
+                return TypedResults.NotFound();
+
             return TypedResults.Ok(products);
         }
 
-        static async Task<IResult> GetProduct(int id, AppDbContext db)
+        static async Task<IResult> GetProductsRecommendations(int productId, AppDbContext db)
         {
-            return await db.Products.FindAsync(id) is Product product
-              ? TypedResults.Ok(product)
-              : TypedResults.NotFound();
+            var originalProduct = await db.Products
+                .Where(p => p.Id == productId)
+                .Select(p => new
+                {
+                    p.SubCategoryId
+                }).FirstOrDefaultAsync();
+
+            if (originalProduct == null)
+            {
+                return TypedResults.NotFound($"Product with Id {productId} not found.");
+            }
+
+            var recommendations = await db.Products
+                .Where(p => p.SubCategoryId == originalProduct.SubCategoryId && p.Id != productId)
+                .Select(p => new ProductDTO
+                {
+                    Id = p.Id,
+                    Title = p.Title,
+                    Slug = p.Slug,
+                    Price = p.Price,
+                    Sale = p.Sale,
+                    SalePrice = p.SalePrice
+                })
+                .ToArrayAsync();
+
+            return TypedResults.Ok(recommendations);
+        }
+
+        static async Task<IResult> GetProductById(int id, AppDbContext db)
+        {
+            var product = await db.Products.Where(p => p.Id == id).Select(p => new ProductDTO
+            {
+                Id = p.Id,
+                Title = p.Title,
+                Slug = p.Slug,
+                Description = p.Description,
+                Price = p.Price,
+                Sale = p.Sale,
+                SalePrice = p.SalePrice,
+                Stock = p.Stock
+            }).FirstOrDefaultAsync();
+
+            if (product is null)
+                return TypedResults.NotFound();
+
+            return TypedResults.Ok(product);
+        }
+
+        static async Task<IResult> GetProductBySlug(string slug, AppDbContext db)
+        {
+            var productData = await db.Products
+                .Where(p => p.Slug == slug)
+                .Select(p => new
+                {
+                    Product = new ProductDTO
+                    {
+                        Id = p.Id,
+                        Title = p.Title,
+                        Slug = p.Slug,
+                        Description = p.Description,
+                        Price = p.Price,
+                        Sale = p.Sale,
+                        SalePrice = p.SalePrice,
+                        Stock = p.Stock,
+                        SubCategoryId = p.SubCategoryId
+                    },
+                    SubCategory = new
+                    {
+                        p.SubCategory!.Title,
+                        p.SubCategory.Slug
+                    },
+                    Category = new
+                    {
+                        p.SubCategory!.Category!.Title,
+                        p.SubCategory.Category.Slug
+                    }
+                }).FirstOrDefaultAsync();
+
+            if (productData is null)
+                return TypedResults.NotFound();
+
+            return TypedResults.Ok(new
+            {
+                product = productData.Product,
+                subCategory = productData.SubCategory,
+                category = productData.Category
+            });
         }
 
         static async Task<IResult> GetProductImage(int id, AppDbContext db)

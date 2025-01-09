@@ -26,7 +26,7 @@ public static class SubCategoriesEndpoints
             {
                 Id = sc.Id,
                 Title = sc.Title,
-                Name = sc.Name,
+                Slug = sc.Slug,
                 Description = sc.Description,
             }).ToArrayAsync());
         }
