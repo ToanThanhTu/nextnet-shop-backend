@@ -1,10 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.Mvc;
 using net_backend.Data.Types;
-using Microsoft.AspNetCore.OutputCaching;
-using System.Xml.Linq;
-using System.Collections.Generic;
-using System.Globalization;
 
 namespace net_backend.Products;
 

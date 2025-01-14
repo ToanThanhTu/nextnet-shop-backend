@@ -1,4 +1,3 @@
-using System.Net;
 using Microsoft.EntityFrameworkCore;
 
 namespace net_backend;
