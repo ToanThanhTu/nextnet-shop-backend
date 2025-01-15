@@ -11,6 +11,7 @@ public static class ProductsEndpoints
         var products = app.MapGroup("/products");
 
         products.MapGet("/all/", GetProducts);
+        products.MapGet("/top-deals", GetTopDeals);
         products.MapGet("/sales/", GetOnSaleProducts);
         products.MapGet("/bestsellers/", GetBestSellers);
         products.MapGet("/search", GetProductsBySearch);
@@ -99,6 +100,28 @@ public static class ProductsEndpoints
                 products,
                 totalItems
             });
+        }
+
+        static async Task<IResult> GetTopDeals(AppDbContext db)
+        {
+            var query = db.Products
+                .Where(p => p.Sale > 0)
+                .OrderByDescending(p => p.Sale)
+                .Take(4);
+
+            var products = await query.Select(p => new ProductDTO
+            {
+                Id = p.Id,
+                Title = p.Title,
+                Slug = p.Slug,
+                Description = p.Description,
+                Price = p.Price,
+                Sale = p.Sale,
+                SalePrice = p.SalePrice,
+                Stock = p.Stock
+            }).ToArrayAsync();
+
+            return TypedResults.Ok(products);
         }
 
         static async Task<IResult> GetOnSaleProducts(
