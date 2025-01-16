@@ -33,9 +33,7 @@ public static class ConfigureServices
         // adds the database context to the dependency injection (DI) container
         builder.Services.AddDbContext<AppDbContext>(opt =>
         {
-            opt.UseSqlServer(
-          builder.Configuration.GetConnectionString("DefaultConnection")
-        );
+            opt.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection"));
         });
 
         // enables displaying database-related exceptions
@@ -47,12 +45,12 @@ public static class ConfigureServices
         builder.Services.AddCors(options =>
         {
             options.AddPolicy(
-          "AllowFrontend",
-          policy =>
-          {
-                policy.AllowAnyOrigin().AllowAnyMethod().AllowAnyHeader();
-            }
-        );
+                "AllowFrontend",
+                policy =>
+                {
+                    policy.AllowAnyOrigin().AllowAnyMethod().AllowAnyHeader();
+                }
+            );
         });
     }
 
@@ -70,7 +68,7 @@ public static class ConfigureServices
                     ValidIssuer = "Trevor",
                     ValidAudience = "Trevor",
                     IssuerSigningKey = new SymmetricSecurityKey(
-                        System.Text.Encoding.UTF8.GetBytes("secret")
+                        System.Text.Encoding.UTF8.GetBytes("my_super_secret_key_1234567890abcdef")
                     )
                 };
             });
