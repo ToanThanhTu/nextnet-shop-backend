@@ -7,6 +7,9 @@ class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(options)
     public DbSet<SubCategory> SubCategories => Set<SubCategory>();
     public DbSet<Product> Products => Set<Product>();
     public DbSet<User> Users => Set<User>();
+    public DbSet<Order> Orders => Set<Order>();
+    public DbSet<OrderItem> OrderItems => Set<OrderItem>();
+    public DbSet<CartItem> CartItems => Set<CartItem>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -21,5 +24,23 @@ class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(options)
           .HasMany(sc => sc.Products)
           .WithOne(p => p.SubCategory)
           .HasForeignKey(p => p.SubCategoryId);
+
+        modelBuilder
+            .Entity<Order>()
+            .HasOne(o => o.User)
+            .WithMany(u => u.Orders)
+            .HasForeignKey(o => o.UserId);
+
+        modelBuilder
+            .Entity<OrderItem>()
+            .HasOne(oi => oi.Order)
+            .WithMany(o => o.OrderItems)
+            .HasForeignKey(oi => oi.OrderId);
+
+        modelBuilder
+            .Entity<CartItem>()
+            .HasOne(ci => ci.User)
+            .WithMany(u => u.CartItems)
+            .HasForeignKey(ci => ci.UserId);
     }
 }
