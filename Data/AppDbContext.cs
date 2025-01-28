@@ -14,16 +14,16 @@ class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(options)
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder
-          .Entity<Category>()
-          .HasMany(c => c.SubCategories)
-          .WithOne(sc => sc.Category)
-          .HasForeignKey(sc => sc.CategoryId);
+            .Entity<Category>()
+            .HasMany(c => c.SubCategories)
+            .WithOne(sc => sc.Category)
+            .HasForeignKey(sc => sc.CategoryId);
 
         modelBuilder
-          .Entity<SubCategory>()
-          .HasMany(sc => sc.Products)
-          .WithOne(p => p.SubCategory)
-          .HasForeignKey(p => p.SubCategoryId);
+            .Entity<SubCategory>()
+            .HasMany(sc => sc.Products)
+            .WithOne(p => p.SubCategory)
+            .HasForeignKey(p => p.SubCategoryId);
 
         modelBuilder
             .Entity<Order>()
