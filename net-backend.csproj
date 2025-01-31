@@ -19,8 +19,6 @@
 
   <ItemGroup>
     <Folder Include="Common\Api\" />
-    <Folder Include="Cart\" />
-    <Folder Include="Order\" />
   </ItemGroup>
 
 </Project>

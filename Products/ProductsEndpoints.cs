@@ -16,6 +16,7 @@ public static class ProductsEndpoints
         products.MapGet("/bestsellers/", GetBestSellers);
         products.MapGet("/search", GetProductsBySearch);
         products.MapGet("/recommendations/{productId}", GetProductsRecommendations);
+        products.MapGet("/personal-recommendations/{userId}", GetPersonalRecommendations);
         products.MapGet("/id/{id}", GetProductById);
         products.MapGet("/slug/{slug}", GetProductBySlug);
         products.MapGet("/{id}/image", GetProductImage);
@@ -285,6 +286,44 @@ public static class ProductsEndpoints
                 .ToArrayAsync();
 
             return TypedResults.Ok(recommendations);
+        }
+
+        static async Task<IResult> GetPersonalRecommendations(int userId, AppDbContext db)
+        {
+            var userOrders = await db.Orders
+                .Where(o => o.UserId == userId)
+                .Include(o => o.OrderItems!)
+                    .ThenInclude(oi => oi.Product)
+                .ToListAsync();
+
+            // if user does not have order history, return top deals
+            if (userOrders == null || userOrders.Count == 0)
+            {
+                return TypedResults.Ok(GetTopDeals);
+            }
+
+            var subCategoryIds = userOrders
+                .SelectMany(o => o.OrderItems!)
+                .Select(oi => oi.Product!.SubCategoryId)
+                .Distinct()
+                .ToList();
+
+            var personalRecommendedProducts = await db.Products
+                .Where(p => subCategoryIds.Contains(p.SubCategoryId))
+                .Select(p => new ProductDTO
+                {
+                    Id = p.Id,
+                    Title = p.Title,
+                    Slug = p.Slug,
+                    Description = p.Description,
+                    Price = p.Price,
+                    Sale = p.Sale,
+                    SalePrice = p.SalePrice,
+                    Stock = p.Stock
+                })
+                .ToListAsync();
+
+            return TypedResults.Ok(personalRecommendedProducts);
         }
 
         static async Task<IResult> GetProductById(int id, AppDbContext db)

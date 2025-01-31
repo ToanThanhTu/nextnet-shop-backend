@@ -7,7 +7,7 @@
         public DateTime OrderDate { get; set; } = DateTime.Now;
         public decimal TotalPrice { get; set; }
         public string Status { get; set; } = "Pending";
-        public User User { get; set; } = null!;
-        public List<OrderItem> OrderItems { get; set; } = [];
+        public User? User { get; set; }
+        public List<OrderItem>? OrderItems { get; set; }
     }
 }

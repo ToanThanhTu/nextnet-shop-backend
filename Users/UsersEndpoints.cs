@@ -98,6 +98,9 @@ public static class UsersEndpoints
         {
             var user = await db.Users
                 .Where(u => u.Email == userLogin.Email)
+                .Include(u => u.CartItems!)
+                    .ThenInclude(ci => ci.Product)
+                .Include(u => u.Orders)
                 .FirstOrDefaultAsync();
 
             if (user is null)
@@ -112,7 +115,31 @@ public static class UsersEndpoints
                 Id = user.Id,
                 Name = user.Name,
                 Email = user.Email,
-                Role = user.Role
+                Role = user.Role,
+                CartItems = user.CartItems?.Select(ci => new CartItemDTO
+                {
+                    Id = ci.Id,
+                    UserId = ci.UserId,
+                    ProductId = ci.ProductId,
+                    Quantity = ci.Quantity,
+                    Product = ci.Product
+                }).ToList() ?? [],
+                Orders = user.Orders?.Select(o => new OrderDTO
+                {
+                    Id = o.Id,
+                    OrderDate = o.OrderDate,
+                    TotalPrice = o.TotalPrice,
+                    Status = o.Status,
+                    OrderItems = o.OrderItems?
+                        .Select(oi => new OrderItemDTO
+                        {
+                            Id = oi.Id,
+                            ProductId = oi.ProductId,
+                            Quantity = oi.Quantity,
+                            Price = oi.Price,
+                            Product = oi.Product ?? null,
+                        }).ToList() ?? []
+                }).ToList() ?? []
             };
 
             return TypedResults.Ok(new

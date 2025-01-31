@@ -1,4 +1,6 @@
+using net_backend.Cart;
 using net_backend.Categories;
+using net_backend.Orders;
 using net_backend.Products;
 using net_backend.Users;
 
@@ -34,6 +36,12 @@ public static class ConfigureApp
 
         // Register Users endpoints
         app.RegisterUsersEndpoints();
+
+        // Register Cart endpoints
+        app.RegisterCartEndpoints();
+
+        // Register Orders endpoints
+        app.RegisterOrdersEndpoints();
 
         app.UseAuthentication();
         //app.UseAuthorization();
