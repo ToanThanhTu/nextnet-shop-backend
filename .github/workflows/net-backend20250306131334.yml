@@ -4,6 +4,7 @@ on:
     branches:
     - main
 env:
+  AZURE_SQL_CONNECTIONSTRING: ${{ secrets.AZURE_SQL_CONNECTIONSTRING }}
   AZURE_WEBAPP_NAME: net-backend20250306131334
   AZURE_WEBAPP_PACKAGE_PATH: .\published
   CONFIGURATION: Release
