@@ -30,10 +30,22 @@ public static class ConfigureServices
 
     private static void AddDatabase(this WebApplicationBuilder builder)
     {
-        // adds the database context to the dependency injection (DI) container
-        builder.Services.AddDbContext<AppDbContext>(opt =>
+        var connection = String.Empty;
+
+        if (builder.Environment.IsDevelopment())
         {
-            opt.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection"));
+            builder.Configuration.AddEnvironmentVariables().AddJsonFile("appsettings.Development.json");
+            connection = builder.Configuration.GetConnectionString("AZURE_SQL_CONNECTIONSTRING");
+        }
+        else
+        {
+            connection = Environment.GetEnvironmentVariable("AZURE_SQL_CONNECTIONSTRING");
+        }
+
+        // adds the database context to the dependency injection (DI) container
+        builder.Services.AddDbContext<AppDbContext>(options =>
+        {
+            options.UseSqlServer(connection);
         });
 
         // enables displaying database-related exceptions
