@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
+using Npgsql.EntityFrameworkCore.PostgreSQL;
 
 namespace net_backend;
 
@@ -8,10 +9,19 @@ public static class ConfigureServices
 {
     public static void AddServices(this WebApplicationBuilder builder)
     {
+        builder.ConfigurePort();
         builder.AddCors();
         builder.AddSwagger();
         builder.AddDatabase();
         builder.AddJwtAuthentication();
+    }
+
+    private static void ConfigurePort(this WebApplicationBuilder builder)
+    {
+        builder.WebHost.ConfigureKestrel(options =>
+        {
+            options.Listen(System.Net.IPAddress.Any, 8080);
+        });
     }
 
     private static void AddSwagger(this WebApplicationBuilder builder)
@@ -34,18 +44,22 @@ public static class ConfigureServices
 
         if (builder.Environment.IsDevelopment())
         {
+            // Load development-specific configuration
             builder.Configuration.AddEnvironmentVariables().AddJsonFile("appsettings.Development.json");
-            connection = builder.Configuration.GetConnectionString("AZURE_SQL_CONNECTIONSTRING");
+
+            // Use the connection string key for Fly Postgres
+            connection = builder.Configuration.GetConnectionString("FLY_POSTGRES_CONNECTIONSTRING");
         }
         else
         {
-            connection = Environment.GetEnvironmentVariable("AZURE_SQL_CONNECTIONSTRING");
+            // In production, get the connection string from environment variables
+            connection = Environment.GetEnvironmentVariable("FLY_POSTGRES_CONNECTIONSTRING");
         }
 
         // adds the database context to the dependency injection (DI) container
         builder.Services.AddDbContext<AppDbContext>(options =>
         {
-            options.UseSqlServer(connection);
+            options.UseNpgsql(connection);
         });
 
         // enables displaying database-related exceptions
