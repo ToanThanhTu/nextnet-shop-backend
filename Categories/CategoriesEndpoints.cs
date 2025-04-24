@@ -22,21 +22,26 @@ public static class CategoriesEndpoints
         // - automatically returning the response type metadata for OpenAPI to describe the endpoint
         static async Task<IResult> GetAllCategories(AppDbContext db)
         {
-            return TypedResults.Ok(await db.Categories.Include(c => c.SubCategories).Select(c => new CategoryDTO
-            {
-                Id = c.Id,
-                Title = c.Title,
-                Slug = c.Slug,
-                Description = c.Description,
-                SubCategories = c.SubCategories
-                .Select(sc => new SubCategoryDTO { 
-                    Id = sc.Id, 
-                    Title = sc.Title, 
-                    Slug = sc.Slug, 
-                    Description = sc.Description 
-                })
-                .ToList()
-            }).ToArrayAsync());
+            return TypedResults.Ok(await db.Categories
+                .AsNoTracking()
+                .Include(c => c.SubCategories)
+                .OrderBy(c => c.Id)
+                .Select(c => new CategoryDTO
+                {
+                    Id = c.Id,
+                    Title = c.Title,
+                    Slug = c.Slug,
+                    Description = c.Description,
+                    SubCategories = c.SubCategories
+                        .Select(sc => new SubCategoryDTO
+                        {
+                            Id = sc.Id,
+                            Title = sc.Title,
+                            Slug = sc.Slug,
+                            Description = sc.Description
+                        })
+                        .ToList()
+                }).ToListAsync());
         }
 
         static async Task<IResult> GetCategory(int id, AppDbContext db)

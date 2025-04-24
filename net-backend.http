@@ -1,14 +1,11 @@
-﻿@netBackend_HostAddress = http://localhost:3001
+﻿@net_backend_HostAddress = http://localhost:3001
 
 @id=0
-GET {{netBackend_HostAddress}}/categories/{{id}}
+GET {{net_backend_HostAddress}}/categories/{{id}}
 
 ###
 
-GET {{netBackend_HostAddress}}/categories
+GET {{net_backend_HostAddress}}/categories
 
 ###
 
-GET {{net-backend_HostAddress}}/categories
-
-###
