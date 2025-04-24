@@ -34,7 +34,7 @@ public class Product
     [Column("image")]
     public byte[]? Image { get; set; }
 
-    [Column("sub_category_id")]
+    [Column("subcategory_id")]
     public int SubCategoryId { get; set; }
 
     [Column("sub_category")]

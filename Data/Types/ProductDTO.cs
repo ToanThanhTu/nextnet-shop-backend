@@ -31,7 +31,7 @@ namespace net_backend.Data.Types
         [Column("sold")]
         public int? Sold { get; set; }
 
-        [Column("sub_category_id")]
+        [Column("subcategory_id")]
         public int SubCategoryId { get; set; }
     }
 }
