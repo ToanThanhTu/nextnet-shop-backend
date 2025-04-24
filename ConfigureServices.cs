@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
@@ -41,20 +42,63 @@ public static class ConfigureServices
     private static void AddDatabase(this WebApplicationBuilder builder)
     {
         var connection = String.Empty;
+        var connectionUrl = String.Empty;
 
         if (builder.Environment.IsDevelopment())
         {
             // Load development-specific configuration
-            builder.Configuration.AddEnvironmentVariables().AddJsonFile("appsettings.Development.json");
+            builder.Configuration.AddEnvironmentVariables().AddJsonFile("appsettings.json");
 
             // Use the connection string key for Fly Postgres
-            connection = builder.Configuration.GetConnectionString("FLY_POSTGRES_CONNECTIONSTRING");
+            connectionUrl = builder.Configuration.GetConnectionString("DATABASE_URL");
         }
         else
         {
             // In production, get the connection string from environment variables
-            connection = Environment.GetEnvironmentVariable("FLY_POSTGRES_CONNECTIONSTRING");
+            connectionUrl = Environment.GetEnvironmentVariable("DATABASE_URL");
         }
+
+        // Parse connection URL to connection string for Npgsql
+        if (!string.IsNullOrEmpty(connectionUrl))
+        {
+            // Remove the protocol prefix
+            connectionUrl = connectionUrl.Replace("postgres://", string.Empty);
+
+            // Split user:pass and host:port/db
+            var pgUserPass = connectionUrl.Split('@')[0];
+            var pgHostPortDb = connectionUrl.Split('@')[1];
+
+            var pgUser = pgUserPass.Split(':')[0];
+            var pgPass = pgUserPass.Split(':')[1];
+
+            var pgHostPort = pgHostPortDb.Split('/')[0];
+            var pgDb = pgHostPortDb.Split('/')[1].Split('?')[0];
+
+            var pgHost = pgHostPort.Split(':')[0];
+            var pgPort = pgHostPort.Split(':')[1];
+
+
+
+            // Construct the connection string for Npgsql
+            if (builder.Environment.IsDevelopment())
+            {
+                connection = $"Host={pgHost};Database={pgDb};Username={pgUser};Password={pgPass};SslMode=Disable;Trust Server Certificate=true;";
+            }
+            else
+            {   // Fly.io internal hostname resolution
+                var updatedHost = pgHost.Replace("flycast", "internal");
+                connection = $"Host={updatedHost};Port={pgPort};Username={pgUser};Password={pgPass};Database={pgDb};SslMode=Disable;Trust Server Certificate=true;";
+            }
+
+
+            Debug.WriteLine($"connection string: {connection}");
+        }
+        else
+        {
+            // Fallback or throw if no connection string is found
+            throw new InvalidOperationException("DATABASE_URL environment variable is not set.");
+        }
+
 
         // adds the database context to the dependency injection (DI) container
         builder.Services.AddDbContext<AppDbContext>(options =>

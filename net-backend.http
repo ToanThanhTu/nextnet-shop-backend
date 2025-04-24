@@ -1,0 +1,10 @@
+﻿@netBackend_HostAddress = http://localhost:3001
+
+@id=0
+GET {{netBackend_HostAddress}}/categories/{{id}}
+
+###
+
+GET {{netBackend_HostAddress}}/categories
+
+###
