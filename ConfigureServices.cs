@@ -77,19 +77,18 @@ public static class ConfigureServices
             var pgHost = pgHostPort.Split(':')[0];
             var pgPort = pgHostPort.Split(':')[1];
 
-
+            // Fly.io internal hostname resolution
+            var updatedHost = pgHost.Replace("flycast", "internal");
 
             // Construct the connection string for Npgsql
             if (builder.Environment.IsDevelopment())
             {
-                connection = $"Host={pgHost};Database={pgDb};Username={pgUser};Password={pgPass};SslMode=Disable;Trust Server Certificate=true;";
+                connection = $"Host={pgHost};Port={pgPort};User Id={pgUser};Password={pgPass};Database={pgDb};SslMode=Disable;Trust Server Certificate=true;";
             }
             else
-            {   // Fly.io internal hostname resolution
-                var updatedHost = pgHost.Replace("flycast", "internal");
-                connection = $"Host={updatedHost};Port={pgPort};Username={pgUser};Password={pgPass};Database={pgDb};SslMode=Disable;Trust Server Certificate=true;";
+            {
+                connection = $"Host={updatedHost};Port={pgPort};User Id={pgUser};Password={pgPass};Database={pgDb};SslMode=Disable;Trust Server Certificate=true;";
             }
-
 
             Debug.WriteLine($"connection string: {connection}");
         }

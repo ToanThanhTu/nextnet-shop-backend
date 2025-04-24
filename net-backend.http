@@ -8,3 +8,7 @@ GET {{netBackend_HostAddress}}/categories/{{id}}
 GET {{netBackend_HostAddress}}/categories
 
 ###
+
+GET {{net-backend_HostAddress}}/categories
+
+###
