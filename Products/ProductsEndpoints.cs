@@ -38,69 +38,90 @@ public static class ProductsEndpoints
             [FromQuery] int? page,
             AppDbContext db)
         {
-            var query = from product in db.Products
-                        join subCategory in db.SubCategories
-                        on product.SubCategoryId equals subCategory.Id
-                        join cat in db.Categories
-                        on subCategory.CategoryId equals cat.Id
-                        select new
+            if (db is null) return TypedResults.Problem("Database context is unavailable");
+
+            try
+            {
+                // Validate pagination parameters
+                limit = Math.Clamp(limit.GetValueOrDefault(12), 1, 100);
+                page = Math.Max(page.GetValueOrDefault(1), 1);
+
+                var query = db.Products
+                    .Join(db.SubCategories,
+                        product => product.SubCategoryId,
+                        subCategory => subCategory.Id,
+                        (product, subCategory) => new { product, subCategory })
+                    .Join(db.Categories,
+                        ps => ps.subCategory.CategoryId,
+                        category => category.Id,
+                        (ps, category) => new
                         {
-                            product,
-                            subCategoryTitle = subCategory.Title,
-                            categoryTitle = cat.Title
-                        };
+                            ps.product,
+                            ps.subCategory,
+                            category
+                        })
+                    .AsNoTracking();
 
-            // Filter by SubCategory if exists, otherwise filter by Category
-            if (!string.IsNullOrEmpty(subcategory))
-            {
-                query = query.Where(p => p.subCategoryTitle == subcategory);
+                // Filter by SubCategory if exists, otherwise filter by Category
+                if (!string.IsNullOrEmpty(subcategory))
+                {
+                    query = query.Where(p => p.subCategory.Title.ToLower() == subcategory.ToLower());
+                }
+                else if (!string.IsNullOrEmpty(category))
+                {
+                    query = query.Where(p => p.category.Title.ToLower() == category.ToLower());
+                }
+
+                // Filter by Price
+                if (priceMin.HasValue)
+                {
+                    query = query.Where(p => p.product.SalePrice >= priceMin.Value);
+                }
+
+                if (priceMax.HasValue)
+                {
+                    query = query.Where(p => p.product.SalePrice <= priceMax.Value);
+                }
+
+                // Sorting
+                query = sortBy?.ToLower() switch
+                {
+                    "priceLowHigh" => query.OrderBy(p => p.product.SalePrice),
+                    "priceHighLow" => query.OrderByDescending(p => p.product.SalePrice),
+                    _ => query.OrderBy(p => p.product.Id)
+                };
+
+                var totalItems = await query.CountAsync();
+
+                // Pagination
+                var itemsToSkip = (page.Value - 1) * limit.Value;
+
+                var products = await query
+                    .Skip(itemsToSkip)
+                    .Take(limit.Value)
+                    .Select(p => new ProductDTO
+                    {
+                        Id = p.product.Id,
+                        Title = p.product.Title,
+                        Slug = p.product.Slug,
+                        Description = p.product.Description,
+                        Price = p.product.Price,
+                        Sale = p.product.Sale,
+                        SalePrice = p.product.SalePrice,
+                        Stock = p.product.Stock
+                    })
+                    .ToArrayAsync();
+
+                return TypedResults.Ok(new
+                {
+                    products,
+                    totalItems
+                });
             }
-            else if (!string.IsNullOrEmpty(category))
+            catch (Exception ex)
             {
-                query = query.Where(p => p.categoryTitle == category);
+                return TypedResults.Problem($"An error occurred: {ex.Message}");
             }
-
-            // Filter by Price
-            if (priceMin.HasValue)
-            {
-                query = query.Where(p => p.product.SalePrice >= priceMin.Value);
-            }
-
-            if (priceMax.HasValue)
-            {
-                query = query.Where(p => p.product.SalePrice <= priceMax.Value);
-            }
-
-            // Sorting
-            query = sortBy switch
-            {
-                "priceLowHigh" => query.OrderBy(p => p.product.SalePrice),
-                "priceHighLow" => query.OrderByDescending(p => p.product.SalePrice),
-                _ => query.OrderBy(p => p.product.Id)
-            };
-
-            var totalItems = await query.CountAsync();
-
-            // Pagination
-            int itemsToSkip = (page.GetValueOrDefault(1) - 1) * limit.GetValueOrDefault(12);
-            query = query.Skip(itemsToSkip).Take(limit.GetValueOrDefault(12));
-
-            var products = await query.Select(p => p.product).Select(p => new ProductDTO
-            {
-                Id = p.Id,
-                Title = p.Title,
-                Slug = p.Slug,
-                Description = p.Description,
-                Price = p.Price,
-                Sale = p.Sale,
-                SalePrice = p.SalePrice,
-                Stock = p.Stock
-            }).ToArrayAsync();
-            return TypedResults.Ok(new
-            {
-                products,
-                totalItems
-            });
         }
 
         static async Task<IResult> GetTopDeals(AppDbContext db)
