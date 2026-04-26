@@ -15,7 +15,7 @@ public static class FooEndpoints
     {
         var foo = app.MapGroup("/foo");
         foo.MapGet("/", GetAll);
-        foo.MapGet("/{id}", GetById);
+        foo.MapPost("/", Create).RequireAuthorization("Admin");
         // ...
 
         static async Task<IResult> GetAll(AppDbContext db) { ... }
@@ -30,7 +30,7 @@ Handlers are local static functions inside the `Register*Endpoints` method, decl
 
 ## Routes are unprefixed
 
-Routes do not use `/api/...`. They sit at the top level: `/categories`, `/products/all/`, `/users/login`, etc. Don't introduce an `/api` prefix without changing every existing route and the frontend's expectations.
+Routes do not use `/api/...`. They sit at the top level: `/categories`, `/products/all/`, `/users/login`, etc. Don't introduce an `/api` prefix without changing every existing route and the frontend's expectations (the Next.js middleware already strips `/api/` before forwarding).
 
 ## Return types: `IResult` + `TypedResults`
 
@@ -49,38 +49,67 @@ Use `.AsNoTracking()` for read-only queries and project directly into the DTO vi
 
 ## Database
 
-- DbContext: `Data/AppDbContext.cs`. All `DbSet`s + `OnModelCreating` configuration (table names, FKs, indexes).
+- DbContext: `Data/AppDbContext.cs`. All `DbSet`s + `OnModelCreating` configuration (table names, FKs, indexes, computed columns).
 - Tables use lowercase plural names; entity classes use PascalCase singular.
 - Cascading deletes are configured for parent-child aggregates (User → Orders/CartItems, Category → SubCategories, etc.).
 - Indexes: `Product.SubCategoryId`, `SubCategory.CategoryId`, `Order.UserId`, `OrderItem.OrderId`, `CartItem.UserId`.
-- Connection string parsing: `ConfigureServices.AddDatabase` parses `postgres://...` URLs into Npgsql format. Don't use the EF Core conventional `Server=...;Database=...;` style here; the URL parsing logic expects the URL form.
+- Computed columns: `Category.slug`, `SubCategory.slug`, `Product.slug` (lower-replace title), `Product.sale_price` (price × (1 - sale/100)). Declared via `HasComputedColumnSql(..., stored: true)` so EF knows not to insert them.
+- Connection string: parsed via `System.Uri` + `NpgsqlConnectionStringBuilder` in `ConfigureServices.ParsePostgresUrl`. Pass `postgres://...` URL form, not Npgsql key=value.
 
 ## Authentication and authorization
 
-JWT Bearer authentication is wired up (`ConfigureServices.AddJwtAuthentication`) and the middleware is enabled (`app.UseAuthentication()`). However:
+JWT bearer auth is wired in `ConfigureServices.AddJwtAuthentication` and the middleware (`UseAuthentication` + `UseAuthorization`) is enabled in `ConfigureApp.Configure`. Endpoints opt into auth at registration:
 
-- `app.UseAuthorization()` is **commented out** in `ConfigureApp.cs`.
-- No endpoint calls `RequireAuthorization()`.
+```csharp
+group.MapPost("/", Create).RequireAuthorization("Admin");   // requires Admin role
+group.MapGet("/", List).RequireAuthorization();              // any authenticated user
+group.MapGet("/public", Read);                               // public, no auth
+```
 
-Effect: all endpoints are publicly accessible. JWTs are issued by `/users/login` (via `JwtTokenHelper`) but never required.
+Named policies live in `ConfigureServices.AddAuthorizationPolicies`. Today only `"Admin"` is defined (`RequireRole("Admin")`). Add more there.
 
-Before adding any endpoint that should be protected, do all three:
+Token issuance is `JwtTokenHelper.GenerateToken(user)`, registered as a singleton; inject it as a parameter into login-style handlers. The helper uses the same `IOptions<JwtOptions>` that `AddJwtAuthentication` reads, so issuance and validation share configuration.
 
-1. Uncomment `app.UseAuthorization();` in `ConfigureApp.cs`.
-2. Add `.RequireAuthorization()` to the specific endpoint or group.
-3. Verify with a request lacking a token: should return 401.
+JWT config lives in the `Jwt` section (`Jwt:Issuer`, `Jwt:Audience`, `Jwt:SigningKey`, `Jwt:ExpirationMinutes`). In dev, defaults are in `appsettings.json`. In prod, set `Jwt__SigningKey` via `fly secrets set`.
 
-JWT signing key, issuer, and audience are currently hardcoded constants. Move these to configuration before changing prod.
+## Adding auth to a new endpoint
+
+1. Decide policy: public, authenticated, or `"Admin"`.
+2. Append `.RequireAuthorization(...)` at registration time.
+3. If you need the calling user, read claims from `HttpContext.User`:
+   ```csharp
+   static async Task<IResult> Handler(HttpContext ctx, AppDbContext db)
+   {
+       var userId = int.Parse(ctx.User.FindFirstValue(ClaimTypes.NameIdentifier)!);
+       // ...
+   }
+   ```
+   Don't take the user id as a path parameter for endpoints that should only operate on the caller's own data; use the JWT claim.
+
+## Multi-aggregate writes wrap in a transaction
+
+Any handler that mutates more than one aggregate must run inside `db.Database.BeginTransactionAsync()`. The canonical example is `OrdersEndpoints.PlaceOrder`, which:
+
+1. Loads cart items and validates against client-supplied data
+2. Loads the affected products and rejects if stock is insufficient
+3. Decrements `Stock`, increments `Sold`
+4. Inserts `Order` + `OrderItem` rows
+5. Removes the user's `CartItem`s
+6. Commits
+
+If any step throws, the whole thing rolls back. Don't fall back to the multiple-`SaveChanges` pattern that existed before; it can leave the DB in an inconsistent state.
 
 ## Configuration
 
-Don't touch `process.env`-style env vars directly. Read from `builder.Configuration.GetConnectionString(...)` or `builder.Configuration["..."]` so dev/prod overrides work.
+Don't touch `process.env`-style env vars directly. Read from `builder.Configuration.GetConnectionString(...)`, `builder.Configuration.GetSection(...)`, or `IOptions<T>` so dev/prod overrides via env vars (double-underscore for nested keys) work.
 
 The `appsettings.json` connection string points at `localhost:15432` (the local Docker DB exposed to the host). Inside the backend container, the env var `ConnectionStrings__DATABASE_URL` overrides it to `db:5432` (compose network DNS). Keep both in sync if you change the local DB credentials.
 
+CORS allowed origins come from `Cors:AllowedOrigins` (string array). Empty array = no cross-origin allowed.
+
 ## Migrations workflow
 
-Migrations live in `Migrations/`. The baseline (`InitialCreate`) was generated after restoring a prod data dump; it is recorded as applied in `__EFMigrationsHistory` without ever running its `Up()` method. This keeps the local schema identical to prod's hand-crafted version.
+Migrations live in `Migrations/`. The baseline (`20260426151538_InitialCreate`) matches the prod schema (including computed columns). `__EFMigrationsHistory` on each environment has it marked applied; on a fresh local DB it gets inserted by `dotnet ef database update`, on a DB restored from prod dump it gets inserted manually (see root README, Path B).
 
 When adding a new migration:
 
@@ -96,15 +125,17 @@ If a generated migration tries to recreate an existing table (because the model 
 ## Adding a new endpoint module
 
 1. Create `<Feature>/<Feature>Endpoints.cs` with a `Register<Feature>Endpoints(this WebApplication app)` extension.
-2. Inside the extension, `var <feature> = app.MapGroup("/<feature>");` then register routes.
+2. Inside the extension, `var <feature> = app.MapGroup("/<feature>");` then register routes. Add `.RequireAuthorization(...)` per the auth model.
 3. Add handlers as local static functions; project to DTOs.
 4. Call `app.Register<Feature>Endpoints();` from `ConfigureApp.Configure`.
 5. If new entities are involved: add the entity in `Data/Types/`, add the `DbSet` and `OnModelCreating` configuration in `AppDbContext`, then `dotnet ef migrations add Add<Feature>`.
 
 ## Things to avoid
 
-- **Don't hardcode secrets or credentials.** The current JWT signing key is hardcoded; that's a known wart, not a pattern to copy.
+- **Don't hardcode secrets or credentials.** Use `IOptions<T>` and Fly secrets.
 - **Don't return entities directly** from endpoints; always project to a DTO.
 - **Don't use `Results.Ok(...)`** when `TypedResults.Ok(...)` is available; you lose OpenAPI metadata.
+- **Don't take `userId` as a path parameter** for endpoints that operate on the caller's own data. Read it from the JWT claim instead. Path-param userIds let any authenticated user act as anyone else.
 - **Don't add a global `app.UseExceptionHandler`** without thinking through the error-response shape; the API currently has none, so any added one becomes the contract.
 - **Don't share `Endpoints` registrations across features.** One feature, one file, one `MapGroup`.
+- **Don't run multi-aggregate writes outside a transaction.**

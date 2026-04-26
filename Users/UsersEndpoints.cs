@@ -9,10 +9,10 @@ public static class UsersEndpoints
     {
         var users = app.MapGroup("/users");
 
-        users.MapGet("/", GetUsers);
-        users.MapGet("/id/{id}", GetUserById);
+        users.MapGet("/", GetUsers).RequireAuthorization("Admin");
+        users.MapGet("/id/{id}", GetUserById).RequireAuthorization();
         users.MapPost("/register", RegisterUser);
-        users.MapPost("/admin/create", CreateAdmin);
+        users.MapPost("/admin/create", CreateAdmin).RequireAuthorization("Admin");
         users.MapPost("/login", Login);
 
         static async Task<IResult> GetUsers(AppDbContext db)
@@ -49,7 +49,7 @@ public static class UsersEndpoints
         static async Task<IResult> RegisterUser(UserRegistration userRegistration, AppDbContext db)
         {
             if (await db.Users.AnyAsync(u => u.Email == userRegistration.Email))
-                return TypedResults.BadRequest("Email is already used, please use a different email or log in with your email");
+                return TypedResults.Conflict("Email is already registered.");
 
             var hashedPassword = BCrypt.Net.BCrypt.HashPassword(userRegistration.Password);
 
@@ -65,15 +65,15 @@ public static class UsersEndpoints
             await db.SaveChangesAsync();
 
             return TypedResults.Created(
-              $"/users/{user.Id}",
-              user
+                $"/users/id/{user.Id}",
+                new UserDTO { Id = user.Id, Name = user.Name, Email = user.Email, Role = user.Role }
             );
         }
 
         static async Task<IResult> CreateAdmin(UserRegistration userRegistration, AppDbContext db)
         {
             if (await db.Users.AnyAsync(u => u.Email == userRegistration.Email))
-                return TypedResults.BadRequest("Email is already used, please use a different email or log in with your email");
+                return TypedResults.Conflict("Email is already registered.");
 
             var hashedPassword = BCrypt.Net.BCrypt.HashPassword(userRegistration.Password);
 
@@ -89,13 +89,16 @@ public static class UsersEndpoints
             await db.SaveChangesAsync();
 
             return TypedResults.Created(
-              $"/users/{user.Id}",
-              user
+                $"/users/id/{user.Id}",
+                new UserDTO { Id = user.Id, Name = user.Name, Email = user.Email, Role = user.Role }
             );
         }
 
-        static async Task<IResult> Login(UserLogin userLogin, AppDbContext db)
+        static async Task<IResult> Login(UserLogin userLogin, AppDbContext db, JwtTokenHelper jwt)
         {
+            // Generic 401 on both unknown-email and bad-password to avoid user enumeration.
+            const string genericFailure = "Invalid email or password.";
+
             var user = await db.Users
                 .Where(u => u.Email == userLogin.Email)
                 .Include(u => u.CartItems!)
@@ -104,12 +107,16 @@ public static class UsersEndpoints
                 .FirstOrDefaultAsync();
 
             if (user is null)
-                return TypedResults.NotFound("User not found");
+            {
+                // Run a dummy verify so timing doesn't leak existence.
+                BCrypt.Net.BCrypt.Verify(userLogin.Password, "$2a$10$abcdefghijklmnopqrstuv");
+                return TypedResults.Json(new { message = genericFailure }, statusCode: StatusCodes.Status401Unauthorized);
+            }
 
             if (!BCrypt.Net.BCrypt.Verify(userLogin.Password, user.PasswordHash))
-                return TypedResults.Unauthorized();
+                return TypedResults.Json(new { message = genericFailure }, statusCode: StatusCodes.Status401Unauthorized);
 
-            var userToken = JwtTokenHelper.GenerateToken(user); // Generate JWT
+            var userToken = jwt.GenerateToken(user);
             var userDto = new UserDTO
             {
                 Id = user.Id,

@@ -7,7 +7,7 @@ public static class CartEndpoints
 {
     public static void RegisterCartEndpoints(this WebApplication app)
     {
-        var cart = app.MapGroup("/cart");
+        var cart = app.MapGroup("/cart").RequireAuthorization();
 
         cart.MapGet("/user/{userId}", GetCartItems);
         cart.MapPost("/", AddCartItem);

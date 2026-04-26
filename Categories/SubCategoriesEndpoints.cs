@@ -12,9 +12,9 @@ public static class SubCategoriesEndpoints
         subCategories.MapGet("/", GetAllSubCategories);
         subCategories.MapGet("/{id}", GetSubCategory);
         subCategories.MapGet("/{id}/image", GetSubCategoryImage);
-        subCategories.MapPost("/", CreateSubCategory);
-        subCategories.MapPut("/{id}", UpdateSubCategory);
-        subCategories.MapDelete("/{id}", DeleteSubCategory);
+        subCategories.MapPost("/", CreateSubCategory).RequireAuthorization("Admin");
+        subCategories.MapPut("/{id}", UpdateSubCategory).RequireAuthorization("Admin");
+        subCategories.MapDelete("/{id}", DeleteSubCategory).RequireAuthorization("Admin");
 
         // Using TypedResults to verify the return type is correct
         // Advantages:
@@ -53,10 +53,14 @@ public static class SubCategoriesEndpoints
             db.SubCategories.Add(subCategory);
             await db.SaveChangesAsync();
 
-            return TypedResults.Created(
-              $"/subcategories/{subCategory.Id}",
-              subCategory
-            );
+            var dto = new SubCategoryDTO
+            {
+                Id = subCategory.Id,
+                Title = subCategory.Title,
+                Slug = subCategory.Slug,
+                Description = subCategory.Description,
+            };
+            return TypedResults.Created($"/subcategories/{subCategory.Id}", dto);
         }
 
         static async Task<IResult> UpdateSubCategory(

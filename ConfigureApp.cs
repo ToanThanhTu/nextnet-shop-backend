@@ -44,7 +44,7 @@ public static class ConfigureApp
         app.RegisterOrdersEndpoints();
 
         app.UseAuthentication();
-        //app.UseAuthorization();
+        app.UseAuthorization();
 
         return Task.CompletedTask;
     }

@@ -12,9 +12,9 @@ public static class CategoriesEndpoints
         categories.MapGet("/", GetAllCategories);
         categories.MapGet("/{id}", GetCategory);
         categories.MapGet("/{id}/image", getCategoryImage);
-        categories.MapPost("/", CreateCategory);
-        categories.MapPut("/{id}", UpdateCategory);
-        categories.MapDelete("/{id}", DeleteCategory);
+        categories.MapPost("/", CreateCategory).RequireAuthorization("Admin");
+        categories.MapPut("/{id}", UpdateCategory).RequireAuthorization("Admin");
+        categories.MapDelete("/{id}", DeleteCategory).RequireAuthorization("Admin");
 
         // Using TypedResults to verify the return type is correct
         // Advantages:
@@ -69,7 +69,14 @@ public static class CategoriesEndpoints
             db.Categories.Add(category);
             await db.SaveChangesAsync();
 
-            return TypedResults.Created($"/categories/{category.Id}", category);
+            var dto = new CategoryDTO
+            {
+                Id = category.Id,
+                Title = category.Title,
+                Slug = category.Slug,
+                Description = category.Description,
+            };
+            return TypedResults.Created($"/categories/{category.Id}", dto);
         }
 
         static async Task<IResult> UpdateCategory(

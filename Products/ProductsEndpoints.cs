@@ -16,13 +16,13 @@ public static class ProductsEndpoints
         products.MapGet("/bestsellers/", GetBestSellers);
         products.MapGet("/search", GetProductsBySearch);
         products.MapGet("/recommendations/{productId}", GetProductsRecommendations);
-        products.MapGet("/personal-recommendations/{userId}", GetPersonalRecommendations);
+        products.MapGet("/personal-recommendations/{userId}", GetPersonalRecommendations).RequireAuthorization();
         products.MapGet("/id/{id}", GetProductById);
         products.MapGet("/slug/{slug}", GetProductBySlug);
         products.MapGet("/{id}/image", GetProductImage);
-        products.MapPost("/", CreateProduct);
-        products.MapPut("/id/{id}", UpdateProduct);
-        products.MapDelete("/id/{id}", DeleteProduct);
+        products.MapPost("/", CreateProduct).RequireAuthorization("Admin");
+        products.MapPut("/id/{id}", UpdateProduct).RequireAuthorization("Admin");
+        products.MapDelete("/id/{id}", DeleteProduct).RequireAuthorization("Admin");
 
         // Using TypedResults to verify the return type is correct
         // Advantages:
@@ -320,7 +320,7 @@ public static class ProductsEndpoints
             // if user does not have order history, return top deals
             if (userOrders == null || userOrders.Count == 0)
             {
-                return TypedResults.Ok(GetTopDeals);
+                return await GetTopDeals(db);
             }
 
             var subCategoryIds = userOrders
@@ -423,7 +423,18 @@ public static class ProductsEndpoints
             db.Products.Add(product);
             await db.SaveChangesAsync();
 
-            return TypedResults.Created($"/products/{product.Id}", product);
+            var dto = new ProductDTO
+            {
+                Id = product.Id,
+                Title = product.Title,
+                Slug = product.Slug,
+                Description = product.Description,
+                Price = product.Price,
+                Sale = product.Sale,
+                SalePrice = product.SalePrice,
+                Stock = product.Stock,
+            };
+            return TypedResults.Created($"/products/id/{product.Id}", dto);
         }
 
         static async Task<IResult> UpdateProduct(

@@ -1,8 +1,9 @@
-using System.Diagnostics;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
+using Npgsql;
 using Npgsql.EntityFrameworkCore.PostgreSQL;
+using net_backend.Users;
 
 namespace net_backend;
 
@@ -20,20 +21,12 @@ public static class ConfigureServices
     /// <param name="builder">The web application builder to configure</param>
     public static void AddServices(this WebApplicationBuilder builder)
     {
-        // Configure server to listen on port 8080
         builder.ConfigurePort();
-        
-        // Enable Cross-Origin Resource Sharing for frontend communication
         builder.AddCors();
-        
-        // Set up Swagger/OpenAPI documentation
         builder.AddSwagger();
-        
-        // Configure PostgreSQL database with Entity Framework
         builder.AddDatabase();
-        
-        // Set up JWT Bearer token authentication
         builder.AddJwtAuthentication();
+        builder.AddAuthorizationPolicies();
     }
 
     /// <summary>
@@ -69,142 +62,149 @@ public static class ConfigureServices
     }
 
     /// <summary>
-    /// Configures PostgreSQL database connection with Entity Framework Core.
-    /// Handles both development and production environments with different connection sources.
-    /// Includes complex URL parsing logic for Fly.io PostgreSQL URL format.
+    /// Configures PostgreSQL with EF Core. Reads the URL from configuration
+    /// (dev: appsettings.json / ConnectionStrings__DATABASE_URL env override;
+    ///  prod: DATABASE_URL env var as a Fly.io secret) and converts the
+    /// postgres:// URL into Npgsql's key=value format using System.Uri +
+    /// NpgsqlConnectionStringBuilder, which handle URL-encoded passwords,
+    /// missing ports, and the postgresql:// scheme variant.
     /// </summary>
     private static void AddDatabase(this WebApplicationBuilder builder)
     {
-        var connection = String.Empty;
-        var connectionUrl = String.Empty;
+        var connectionUrl = builder.Environment.IsDevelopment()
+            ? builder.Configuration.GetConnectionString("DATABASE_URL")
+            : Environment.GetEnvironmentVariable("DATABASE_URL");
 
-        // Environment-specific connection string retrieval.
-        // Dev: ConnectionStrings:DATABASE_URL — via appsettings.json by default,
-        //      override-able by the env var ConnectionStrings__DATABASE_URL (e.g. inside Docker).
-        // Prod: bare DATABASE_URL env var (Fly.io secret).
-        if (builder.Environment.IsDevelopment())
+        if (string.IsNullOrEmpty(connectionUrl))
         {
-            connectionUrl = builder.Configuration.GetConnectionString("DATABASE_URL");
-        }
-        else
-        {
-            connectionUrl = Environment.GetEnvironmentVariable("DATABASE_URL");
+            throw new InvalidOperationException("DATABASE_URL is not set.");
         }
 
-        // Parse PostgreSQL URL format (postgres://user:pass@host:port/database) to Npgsql connection string
-        if (!string.IsNullOrEmpty(connectionUrl))
-        {
-            // Remove the protocol prefix (postgres://) to get: user:pass@host:port/database
-            connectionUrl = connectionUrl.Replace("postgres://", string.Empty);
+        var connectionString = ParsePostgresUrl(connectionUrl, builder.Environment.IsDevelopment());
 
-            // Split on '@' to separate credentials from host information
-            // Format: user:pass @ host:port/database
-            var pgUserPass = connectionUrl.Split('@')[0];     // user:pass
-            var pgHostPortDb = connectionUrl.Split('@')[1];   // host:port/database
-
-            // Extract user credentials
-            var pgUser = pgUserPass.Split(':')[0];    // username
-            var pgPass = pgUserPass.Split(':')[1];    // password
-
-            // Split host information to separate host:port from database
-            var pgHostPort = pgHostPortDb.Split('/')[0];              // host:port
-            var pgDb = pgHostPortDb.Split('/')[1].Split('?')[0];      // database (remove query params if any)
-
-            // Extract host and port
-            var pgHost = pgHostPort.Split(':')[0];    // hostname
-            var pgPort = pgHostPort.Split(':')[1];    // port number
-
-            // Fly.io specific: Replace flycast with internal for proper hostname resolution
-            // This is required for Fly.io's internal networking
-            var updatedHost = pgHost.Replace("flycast", "internal");
-
-            // Construct the Npgsql connection string format
-            if (builder.Environment.IsDevelopment())
-            {
-                // Development: Use original host for local or external database
-                connection = $"Host={pgHost};Port={pgPort};User Id={pgUser};Password={pgPass};Database={pgDb};SslMode=Disable;Trust Server Certificate=true;";
-            }
-            else
-            {
-                // Production: Use Fly.io internal networking hostname
-                connection = $"Host={updatedHost};Port={pgPort};User Id={pgUser};Password={pgPass};Database={pgDb};SslMode=Disable;Trust Server Certificate=true;";
-            }
-
-            // Log the connection string for debugging (password will be visible in logs)
-            Debug.WriteLine($"connection string: {connection}");
-        }
-        else
-        {
-            // No connection string found - this is a critical configuration error
-            throw new InvalidOperationException("DATABASE_URL environment variable is not set.");
-        }
-
-        // Register the database context in the dependency injection container
-        // This makes AppDbContext available for injection throughout the application
-        builder.Services.AddDbContext<AppDbContext>(options =>
-        {
-            // Configure Entity Framework to use PostgreSQL with the parsed connection string
-            options.UseNpgsql(connection);
-        });
-
-        // Enable detailed database exception pages in development for better debugging
+        builder.Services.AddDbContext<AppDbContext>(options => options.UseNpgsql(connectionString));
         builder.Services.AddDatabaseDeveloperPageExceptionFilter();
     }
 
     /// <summary>
-    /// Configures Cross-Origin Resource Sharing (CORS) to allow frontend communication.
-    /// Currently configured to allow all origins, methods, and headers for development.
-    /// TODO: Restrict to specific frontend domains in production for security.
+    /// Converts a postgres://user:pass@host:port/db?... URL into an Npgsql
+    /// key=value connection string. Handles URL-encoded passwords, the
+    /// postgresql:// scheme alias, missing ports (defaults to 5432), and
+    /// query-string options. Production uses Fly.io's internal IPv6 routing
+    /// by rewriting the .flycast hostname suffix to .internal.
+    /// </summary>
+    private static string ParsePostgresUrl(string url, bool isDevelopment)
+    {
+        // Uri.TryCreate doesn't accept "postgres://"; normalise to a scheme it knows.
+        var normalised = url.StartsWith("postgres://", StringComparison.Ordinal)
+            ? "http://" + url["postgres://".Length..]
+            : url.StartsWith("postgresql://", StringComparison.Ordinal)
+                ? "http://" + url["postgresql://".Length..]
+                : url;
+
+        var uri = new Uri(normalised);
+        var userInfo = uri.UserInfo.Split(':', 2);
+        var user = Uri.UnescapeDataString(userInfo[0]);
+        var password = userInfo.Length > 1 ? Uri.UnescapeDataString(userInfo[1]) : string.Empty;
+        var host = uri.Host;
+        if (!isDevelopment)
+        {
+            host = host.Replace("flycast", "internal");
+        }
+        var port = uri.Port > 0 ? uri.Port : 5432;
+        var database = uri.AbsolutePath.TrimStart('/');
+
+        var b = new NpgsqlConnectionStringBuilder
+        {
+            Host = host,
+            Port = port,
+            Username = user,
+            Password = password,
+            Database = database,
+            SslMode = SslMode.Disable,
+        };
+        return b.ConnectionString;
+    }
+
+    /// <summary>
+    /// Configures CORS. Allowed origins come from Cors:AllowedOrigins
+    /// (array of URLs) in configuration. AllowCredentials() lets the browser
+    /// send the JWT in fetch credentials mode if/when that's added; with the
+    /// current `Authorization: Bearer` header pattern it doesn't matter.
     /// </summary>
     private static void AddCors(this WebApplicationBuilder builder)
     {
+        var allowed = builder.Configuration
+            .GetSection("Cors:AllowedOrigins")
+            .Get<string[]>() ?? Array.Empty<string>();
+
         builder.Services.AddCors(options =>
         {
             options.AddPolicy(
                 "AllowFrontend",
                 policy =>
                 {
-                    // Allow any origin, method, and header
-                    // WARNING: This is permissive and should be restricted in production
-                    policy.AllowAnyOrigin().AllowAnyMethod().AllowAnyHeader();
+                    if (allowed.Length == 0)
+                    {
+                        // No allowlist configured: lock down. Set Cors:AllowedOrigins
+                        // to enable cross-origin calls from the frontend.
+                        policy.WithOrigins().AllowAnyMethod().AllowAnyHeader();
+                    }
+                    else
+                    {
+                        policy.WithOrigins(allowed).AllowAnyMethod().AllowAnyHeader();
+                    }
                 }
             );
         });
     }
 
     /// <summary>
-    /// Configures JWT Bearer token authentication for API endpoints.
-    /// Sets up token validation parameters including issuer, audience, and signing key.
-    /// TODO: Move hardcoded values to configuration for better security.
+    /// Configures JWT Bearer token authentication. Token issuance + validation
+    /// share configuration via IOptions&lt;JwtOptions&gt; bound to the "Jwt"
+    /// section. In dev, defaults can live in appsettings.json. In prod, set
+    /// Jwt__SigningKey via fly secrets so the key never lives in source.
     /// </summary>
     private static void AddJwtAuthentication(this WebApplicationBuilder builder)
     {
-        // Configure JWT Bearer authentication as the default authentication scheme
+        var jwtSection = builder.Configuration.GetSection(JwtOptions.SectionName);
+        builder.Services.Configure<JwtOptions>(jwtSection);
+        var jwt = jwtSection.Get<JwtOptions>() ?? new JwtOptions();
+
+        if (string.IsNullOrWhiteSpace(jwt.SigningKey))
+        {
+            throw new InvalidOperationException(
+                "Jwt:SigningKey is not configured. Set Jwt__SigningKey via env var or appsettings.");
+        }
+
+        builder.Services.AddSingleton<JwtTokenHelper>();
+
         builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
             .AddJwtBearer(options =>
             {
-                // Configure how incoming JWT tokens should be validated
                 options.TokenValidationParameters = new TokenValidationParameters
                 {
-                    // Validate that the token was issued by the expected issuer
                     ValidateIssuer = true,
-                    // Validate that the token is intended for the expected audience
                     ValidateAudience = true,
-                    // Validate that the token hasn't expired
                     ValidateLifetime = true,
-                    // Validate the signature to ensure token hasn't been tampered with
                     ValidateIssuerSigningKey = true,
-                    
-                    // TODO: Move these to configuration for environment-specific values
-                    ValidIssuer = "Trevor",
-                    ValidAudience = "Trevor",
-                    
-                    // Symmetric key used to sign and validate JWT tokens
-                    // WARNING: This should be moved to environment variables or secure configuration
+                    ValidIssuer = jwt.Issuer,
+                    ValidAudience = jwt.Audience,
                     IssuerSigningKey = new SymmetricSecurityKey(
-                        System.Text.Encoding.UTF8.GetBytes("my_super_secret_key_1234567890abcdef")
-                    )
+                        System.Text.Encoding.UTF8.GetBytes(jwt.SigningKey)
+                    ),
                 };
             });
+    }
+
+    /// <summary>
+    /// Defines the named authorization policies used across endpoints.
+    /// "Admin" requires the Admin role; the default policy requires any
+    /// authenticated user.
+    /// </summary>
+    private static void AddAuthorizationPolicies(this WebApplicationBuilder builder)
+    {
+        builder.Services.AddAuthorizationBuilder()
+            .AddPolicy("Admin", p => p.RequireRole("Admin"));
     }
 }
