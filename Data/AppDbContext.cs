@@ -35,6 +35,11 @@ class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(options ?
             .ToTable("categories")
             .HasKey(c => c.Id);
 
+        // slug is a stored generated column derived from title; always read, never written.
+        modelBuilder.Entity<Category>()
+            .Property(c => c.Slug)
+            .HasComputedColumnSql("lower(replace(title::text, ' '::text, '-'::text))", stored: true);
+
         modelBuilder.Entity<Category>()
             .HasMany(c => c.SubCategories)
             .WithOne(sc => sc.Category)
@@ -47,6 +52,10 @@ class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(options ?
             .HasKey(sc => sc.Id);
 
         modelBuilder.Entity<SubCategory>()
+            .Property(sc => sc.Slug)
+            .HasComputedColumnSql("lower(replace(title::text, ' '::text, '-'::text))", stored: true);
+
+        modelBuilder.Entity<SubCategory>()
             .HasMany(sc => sc.Products)
             .WithOne(p => p.SubCategory)
             .HasForeignKey(p => p.SubCategoryId)
@@ -56,6 +65,15 @@ class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(options ?
         modelBuilder.Entity<Product>()
             .ToTable("products")
             .HasKey(p => p.Id);
+
+        modelBuilder.Entity<Product>()
+            .Property(p => p.Slug)
+            .HasComputedColumnSql("lower(replace(title::text, ' '::text, '-'::text))", stored: true);
+
+        // sale_price is a stored generated column: price * (1 - sale/100).
+        modelBuilder.Entity<Product>()
+            .Property(p => p.SalePrice)
+            .HasComputedColumnSql("price * (1::numeric - sale::numeric(5,2) / 100::numeric)", stored: true);
 
         modelBuilder.Entity<Product>()
             .HasOne(p => p.SubCategory)

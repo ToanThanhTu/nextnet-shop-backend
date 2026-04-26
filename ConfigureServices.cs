@@ -78,18 +78,16 @@ public static class ConfigureServices
         var connection = String.Empty;
         var connectionUrl = String.Empty;
 
-        // Environment-specific connection string retrieval
+        // Environment-specific connection string retrieval.
+        // Dev: ConnectionStrings:DATABASE_URL — via appsettings.json by default,
+        //      override-able by the env var ConnectionStrings__DATABASE_URL (e.g. inside Docker).
+        // Prod: bare DATABASE_URL env var (Fly.io secret).
         if (builder.Environment.IsDevelopment())
         {
-            // Load development-specific configuration from appsettings.json
-            builder.Configuration.AddEnvironmentVariables().AddJsonFile("appsettings.json");
-
-            // Use the connection string key for Fly Postgres in development
             connectionUrl = builder.Configuration.GetConnectionString("DATABASE_URL");
         }
         else
         {
-            // In production, get the connection string from environment variables (Fly.io deployment)
             connectionUrl = Environment.GetEnvironmentVariable("DATABASE_URL");
         }
 

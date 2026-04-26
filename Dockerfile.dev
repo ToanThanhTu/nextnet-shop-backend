@@ -1,0 +1,10 @@
+FROM mcr.microsoft.com/dotnet/sdk:9.0
+WORKDIR /src
+
+# Restore as its own layer so dependency changes are cached.
+# Source comes from the bind mount at runtime.
+COPY *.csproj ./
+RUN dotnet restore
+
+EXPOSE 8080
+ENTRYPOINT ["dotnet", "watch", "run", "--no-launch-profile", "--non-interactive", "--urls", "http://+:8080"]

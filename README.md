@@ -1,320 +1,199 @@
 # Next Net Shop Backend
 
-The backend API for Next Net Shop, built with .NET 9 Minimal API, Entity Framework Core, and PostgreSQL.
+The .NET 9 Minimal API for Next Net Shop. EF Core 9 against PostgreSQL, JWT issuance with BCrypt password hashing, NSwag-generated OpenAPI.
 
-## Technology Stack
+> Project conventions and gotchas live in [CLAUDE.md](CLAUDE.md). This file is the user-facing tour.
 
-- **Framework**: .NET 9 Minimal API
-- **ORM**: Entity Framework Core 9
-- **Database**: PostgreSQL
-- **Authentication**: JWT Bearer tokens with BCrypt password hashing
-- **Documentation**: NSwag (Swagger/OpenAPI)
-- **Deployment**: Fly.io with Docker
-- **Development Tools**: CSharpier for code formatting
+## Stack
 
-## Project Structure
+- .NET 9 (Minimal API style: `MapGroup` + `MapGet`/`MapPost`/etc.)
+- Entity Framework Core 9 with `Npgsql.EntityFrameworkCore.PostgreSQL`
+- PostgreSQL 17 (local: Docker; prod: Fly Postgres `nextnetshop-db`)
+- JWT auth via `Microsoft.AspNetCore.Authentication.JwtBearer` (currently configured but unenforced; see [CLAUDE.md](CLAUDE.md))
+- BCrypt.Net for password hashing
+- NSwag for OpenAPI generation and Swagger UI
+- CSharpier for formatting
+
+## Layout
 
 ```
 net-backend/
-├── Data/                  # Data models and DTOs
-│   └── Types/            # Entity models and DTOs
-│       ├── User.cs               # User entity
-│       ├── Product.cs            # Product entity
-│       ├── Category.cs           # Category entity
-│       ├── CartItem.cs           # Cart item entity
-│       ├── Order.cs              # Order entity
-│       └── *DTO.cs              # Data Transfer Objects
-├── Products/             # Product management endpoints
-│   └── ProductsEndpoints.cs
-├── Users/                # User authentication and management
-│   ├── UsersEndpoints.cs
-│   └── JwtTokenHelper.cs
-├── Cart/                 # Shopping cart functionality
-│   └── CartEndpoints.cs
-├── Orders/               # Order processing
-│   └── OrderEndpoints.cs
-├── Categories/           # Category management
+├── Program.cs               # entry point
+├── ConfigureServices.cs     # DI: CORS, OpenAPI, EF + Postgres URL parsing, JWT
+├── ConfigureApp.cs          # middleware pipeline + endpoint registration
+├── appsettings.json         # dev connection string (localhost:15432)
+├── Categories/
 │   ├── CategoriesEndpoints.cs
 │   └── SubCategoriesEndpoints.cs
-├── ConfigureServices.cs  # Service configuration and DI
-├── ConfigureApp.cs       # Application pipeline configuration
-├── Program.cs            # Application entry point
-└── appsettings.json      # Configuration settings
+├── Products/ProductsEndpoints.cs
+├── Users/
+│   ├── UsersEndpoints.cs
+│   └── JwtTokenHelper.cs
+├── Cart/CartEndpoints.cs
+├── Orders/OrdersEndpoints.cs
+├── Data/
+│   ├── AppDbContext.cs
+│   └── Types/               # entities and DTOs
+├── Migrations/              # EF Core migrations (baseline: InitialCreate)
+├── Dockerfile               # prod image (multi-stage, runtime only)
+├── Dockerfile.dev           # dev image (SDK + dotnet watch)
+└── fly.toml                 # Fly.io app config (nextnetshop-backend)
 ```
 
-## Key Features
+## Quick start
 
-- 🔐 JWT-based authentication with secure password hashing
-- 📦 Complete product management system
-- 🛒 Shopping cart functionality
-- 📋 Order processing and management
-- 🏷️ Category and subcategory organization
-- 📚 Automatic API documentation with Swagger
-- 🐘 PostgreSQL database with Entity Framework
-- 🔧 Modular endpoint organization
-- 🏥 Health checks and monitoring
-- 🐳 Docker containerization
-
-## Development Commands
+The recommended local workflow runs the backend in Docker via the parent repo's `docker-compose.yml`. From the parent repo root:
 
 ```bash
-# Restore dependencies
+docker compose up -d        # Postgres + backend with hot reload
+docker compose logs -f backend
+```
+
+URLs:
+- API: http://localhost:8080
+- Swagger UI: http://localhost:8080/swagger
+
+To run on the host instead (without Docker):
+
+```bash
 dotnet restore
-
-# Start development server
-dotnet run
-
-# Build the application
-dotnet build
-
-# Format code with CSharpier
-dotnet csharpier .
-
-# Run in watch mode (auto-restart on changes)
-dotnet watch run
+dotnet watch run            # auto-rebuild on file changes
+# expects Postgres at localhost:15432 (run docker compose up -d db separately)
 ```
 
-## Database Management
+## Endpoints
 
-### Entity Framework Commands
+All routes are unprefixed (no `/api/`). Authorization middleware is currently disabled, so every endpoint is publicly accessible. JWT issuance still works at `/users/login`.
+
+### Categories
+
+```
+GET    /categories/
+GET    /categories/{id}
+GET    /categories/{id}/image
+POST   /categories/
+PUT    /categories/{id}
+DELETE /categories/{id}
+```
+
+### Subcategories
+
+```
+GET    /subcategories/
+GET    /subcategories/{id}
+GET    /subcategories/{id}/image
+POST   /subcategories/
+PUT    /subcategories/{id}
+DELETE /subcategories/{id}
+```
+
+### Products
+
+```
+GET    /products/all/                                  # filterable: ?category, ?subcategory, ?priceMin, ?priceMax, ?sortBy, ?limit, ?page
+GET    /products/top-deals
+GET    /products/sales/
+GET    /products/bestsellers/
+GET    /products/search                                # ?query=
+GET    /products/recommendations/{productId}
+GET    /products/personal-recommendations/{userId}
+GET    /products/id/{id}
+GET    /products/slug/{slug}
+GET    /products/{id}/image
+POST   /products/
+PUT    /products/id/{id}
+DELETE /products/id/{id}
+```
+
+### Users
+
+```
+GET    /users/
+GET    /users/id/{id}
+POST   /users/register
+POST   /users/admin/create
+POST   /users/login          # returns JWT
+```
+
+### Cart
+
+```
+GET    /cart/user/{userId}
+POST   /cart/
+PUT    /cart/
+DELETE /cart/item
+DELETE /cart/user/{userId}
+POST   /cart/sync/{userId}
+```
+
+### Orders
+
+```
+GET    /orders/user/{userId}
+POST   /orders/user/{userId}
+PUT    /orders/
+```
+
+## Domain model
+
+Entities in `Data/Types/`. Tables use lowercase plural names (set in `AppDbContext.OnModelCreating`).
+
+| Entity | Table | Owns | Belongs to |
+|---|---|---|---|
+| `User` | `users` | `Orders`, `CartItems` | |
+| `Category` | `categories` | `SubCategories` | |
+| `SubCategory` | `subcategories` | `Products` | `Category` |
+| `Product` | `products` | | `SubCategory` |
+| `Order` | `orders` | `OrderItems` | `User` |
+| `OrderItem` | `orderitems` | | `Order`, `Product` |
+| `CartItem` | `cartitems` | | `User`, `Product` |
+
+DTOs are colocated in `Data/Types/` (suffixed `DTO.cs`). Endpoints project entities into DTOs before returning.
+
+## Database migrations
+
+Migrations live in `Migrations/`. The baseline is `InitialCreate`, generated against the schema dumped from prod. The `__EFMigrationsHistory` table on the local DB has `InitialCreate` marked as already applied (it was inserted manually after restoring the prod dump, so EF won't try to recreate the existing tables).
+
 ```bash
-# Add new migration
-dotnet ef migrations add AddNewFeature
+# Create a new migration (run from net-backend on the host with dotnet-ef installed)
+dotnet ef migrations add <Name>
 
-# Update database
+# Apply pending migrations to the local DB
 dotnet ef database update
 
-# Remove last migration
+# List migrations and their applied status
+dotnet ef migrations list
+
+# Undo the most recent migration (only if not yet applied)
 dotnet ef migrations remove
-
-# Generate SQL script for deployment
-dotnet ef migrations script
-
-# Drop database (development only)
-dotnet ef database drop
 ```
 
-### Database Schema
-
-#### Core Entities
-- **Users**: User accounts, authentication, and profiles
-- **Products**: Product catalog with descriptions, prices, and inventory
-- **Categories**: Product categorization system
-- **SubCategories**: Product sub-categorization
-- **CartItems**: Shopping cart items linked to users
-- **Orders**: Customer order records
-- **OrderItems**: Individual items within orders
-
-## API Endpoints
-
-### Authentication (`/api/users`)
-```
-POST   /api/users/register     # User registration
-POST   /api/users/login        # User login
-POST   /api/users/logout       # User logout (clears JWT)
-GET    /api/users/profile      # Get user profile (authenticated)
-PUT    /api/users/profile      # Update user profile (authenticated)
-```
-
-### Products (`/api/products`)
-```
-GET    /api/products           # Get all products with pagination
-GET    /api/products/{id}      # Get product by ID
-POST   /api/products           # Create new product (admin)
-PUT    /api/products/{id}      # Update product (admin)
-DELETE /api/products/{id}      # Delete product (admin)
-GET    /api/products/search    # Search products by query
-```
-
-### Categories (`/api/categories`)
-```
-GET    /api/categories                    # Get all categories
-GET    /api/categories/{id}               # Get category by ID
-GET    /api/categories/{id}/subcategories # Get subcategories
-GET    /api/categories/{id}/products      # Get products in category
-POST   /api/categories                    # Create category (admin)
-PUT    /api/categories/{id}               # Update category (admin)
-DELETE /api/categories/{id}               # Delete category (admin)
-```
-
-### Cart (`/api/cart`)
-```
-GET    /api/cart              # Get user's cart items
-POST   /api/cart/items        # Add item to cart
-PUT    /api/cart/items/{id}   # Update cart item quantity
-DELETE /api/cart/items/{id}   # Remove item from cart
-DELETE /api/cart             # Clear entire cart
-```
-
-### Orders (`/api/orders`)
-```
-GET    /api/orders            # Get user's order history
-GET    /api/orders/{id}       # Get order details
-POST   /api/orders            # Create new order from cart
-PUT    /api/orders/{id}/status # Update order status (admin)
-```
+Install `dotnet-ef` once: `dotnet tool install --global dotnet-ef`.
 
 ## Configuration
 
-### Environment Variables
+`ConfigureServices.cs` reads the database URL by environment:
 
-#### Development (appsettings.Development.json)
-```json
-{
-  "ConnectionStrings": {
-    "DefaultConnection": "Server=localhost;Database=nextnetshop;User Id=postgres;Password=yourpassword;"
-  },
-  "JwtSettings": {
-    "SecretKey": "your-very-long-secret-key-here",
-    "Issuer": "NextNetShop",
-    "Audience": "NextNetShopUsers",
-    "ExpirationInMinutes": 60
-  },
-  "Logging": {
-    "LogLevel": {
-      "Default": "Information",
-      "Microsoft.AspNetCore": "Warning"
-    }
-  }
-}
-```
+- **Development**: `ConnectionStrings:DATABASE_URL` from configuration. Default value lives in `appsettings.json` (`postgres://...@localhost:15432/...`). Override via env var `ConnectionStrings__DATABASE_URL` (the compose file does this to point at `db:5432`).
+- **Production**: bare `DATABASE_URL` env var (Fly secret).
 
-#### Production (Environment Variables)
+The URL is parsed from `postgres://user:pass@host:port/db?sslmode=...` into Npgsql's `Host=...;Port=...;User Id=...;Password=...;Database=...;` format. In production, the `flycast` hostname is rewritten to `internal` for Fly's 6PN routing.
+
+JWT issuer, audience, and signing key are currently hardcoded in `ConfigureServices.AddJwtAuthentication`. Move these to configuration before any non-demo deployment.
+
+## Deployment (Fly.io)
+
 ```bash
-DATABASE_URL=postgresql://user:pass@host:port/dbname
-JWT_SECRET_KEY=your-production-secret-key
-JWT_ISSUER=NextNetShop
-JWT_AUDIENCE=NextNetShopUsers
-ASPNETCORE_ENVIRONMENT=Production
-```
-
-## Authentication & Security
-
-### JWT Implementation
-- **Token Generation**: Uses `JwtTokenHelper.cs` for creating and validating tokens
-- **Password Security**: BCrypt for password hashing with salt
-- **Token Expiration**: Configurable expiration time
-- **Authorization**: Endpoint-level authorization with `[Authorize]` attributes
-
-### Security Best Practices
-- Passwords are hashed using BCrypt with automatic salt generation
-- JWT tokens include user ID and role claims
-- CORS configured for frontend domain only
-- Input validation on all endpoints
-- SQL injection protection through Entity Framework parameterization
-
-## Data Transfer Objects (DTOs)
-
-### Request DTOs
-- `UserRegistrationDTO`: User registration data
-- `UserLoginDTO`: Login credentials
-- `ProductCreateDTO`: Product creation data
-- `CartItemCreateDTO`: Cart item data
-
-### Response DTOs
-- `UserDTO`: User profile information (excluding sensitive data)
-- `ProductDTO`: Product information for API responses
-- `CategoryDTO`: Category information
-- `OrderDTO`: Order information with items
-
-## Error Handling
-
-The API implements consistent error handling:
-- **400 Bad Request**: Invalid input data
-- **401 Unauthorized**: Missing or invalid authentication
-- **403 Forbidden**: Insufficient permissions
-- **404 Not Found**: Resource not found
-- **409 Conflict**: Resource conflicts (e.g., duplicate email)
-- **500 Internal Server Error**: Server errors
-
-## Performance Considerations
-
-- **Database Indexing**: Proper indexes on frequently queried fields
-- **Lazy Loading**: Entity Framework configured for optimal loading
-- **Pagination**: Large result sets are paginated
-- **Caching**: HTTP response caching for static data
-- **Connection Pooling**: Database connection pooling enabled
-
-## Testing
-
-### Unit Testing (when implemented)
-```bash
-# Run all tests
-dotnet test
-
-# Run tests with coverage
-dotnet test --collect:"XPlat Code Coverage"
-```
-
-### API Testing
-- Use the Swagger UI at `http://localhost:8080/swagger` for interactive testing
-- HTTP file provided: `net-backend.http` for VS Code REST Client
-- Postman collection can be generated from Swagger documentation
-
-## Deployment
-
-### Docker Build
-```bash
-# Build Docker image
-docker build -t nextnet-backend .
-
-# Run container
-docker run -p 8080:8080 nextnet-backend
-```
-
-### Fly.io Deployment
-```bash
-# Deploy to Fly.io
-fly deploy
-
-# View logs
+fly deploy                  # build + push + release using net-backend/Dockerfile
 fly logs
-
-# SSH into container
 fly ssh console
+fly status
 ```
 
-## Development Guidelines
-
-### Code Style
-- Follow C# naming conventions (PascalCase for public members)
-- Use CSharpier for code formatting
-- Include XML documentation for public APIs
-- Use meaningful variable and method names
-
-### Adding New Endpoints
-1. Create endpoint class in appropriate feature folder
-2. Define route pattern and HTTP methods
-3. Create required DTOs in `Data/Types/`
-4. Implement business logic with proper error handling
-5. Add authentication attributes if required
-6. Update this documentation
-
-### Database Changes
-1. Modify entity models in `Data/Types/`
-2. Create migration: `dotnet ef migrations add <MigrationName>`
-3. Review generated migration for correctness
-4. Update database: `dotnet ef database update`
-5. Update related DTOs and endpoints
+The prod machine is configured with `min_machines_running = 0` and `auto_stop_machines = 'stop'` (see `fly.toml`), so it's suspended when idle and the first request after a quiet period takes a few seconds to wake.
 
 ## Troubleshooting
 
-### Common Issues
-1. **Database Connection**: Check connection string in appsettings
-2. **JWT Errors**: Verify secret key configuration and token format
-3. **CORS Issues**: Ensure frontend URL is included in CORS policy
-4. **Migration Errors**: Check Entity Framework model configuration
-
-### Debugging Tips
-- Use `dotnet watch run` for automatic restarts during development
-- Check logs in console output for detailed error information
-- Use Swagger UI for testing endpoints
-- Verify database connectivity with `dotnet ef database update`
-
-## Contributing
-
-1. Follow the coding standards in `../CLAUDE.md`
-2. Write unit tests for new functionality
-3. Update this documentation for new features
-4. Use meaningful commit messages
-5. Test endpoints thoroughly before committing
+- **`Failed to connect to 127.0.0.1:15432`** when the backend runs in Docker: appsettings.json beat the env var. The expected env var name is `ConnectionStrings__DATABASE_URL` (double underscore). Restart the backend after fixing.
+- **Migration fails because tables already exist**: the schema came from a dump but `__EFMigrationsHistory` wasn't updated. Insert a row marking the baseline migration as applied (see [CLAUDE.md](CLAUDE.md)).
+- **Hot reload didn't pick up startup changes**: edits to DI/middleware require a full restart. `docker compose restart backend`.
