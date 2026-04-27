@@ -10,8 +10,11 @@ namespace net_backend.Data.Types
         [Column("user_id")]
         public int UserId { get; set; }
 
+        // UtcNow, not Now: Npgsql refuses to write Kind=Local DateTime values
+        // to a timestamp-with-time-zone column. Storing UTC also avoids
+        // server timezone surprises in production.
         [Column("order_date")]
-        public DateTime OrderDate { get; set; } = DateTime.Now;
+        public DateTime OrderDate { get; set; } = DateTime.UtcNow;
 
         [Column("total_price")]
         public decimal TotalPrice { get; set; }
