@@ -1,7 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using net_backend.Data.Types;
 
-class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(options ?? throw new ArgumentNullException(nameof(options)))
+public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(options ?? throw new ArgumentNullException(nameof(options)))
 {
     public DbSet<Category> Categories => Set<Category>();
     public DbSet<SubCategory> SubCategories => Set<SubCategory>();

@@ -1,3 +1,4 @@
+using net_backend.Categories;
 using net_backend.Configuration;
 
 namespace net_backend;
@@ -19,5 +20,15 @@ public static class ConfigureServices
             .AddJwtAuthentication()
             .AddAuthorizationPolicies()
             .AddGlobalExceptionHandler();
+
+        // MVC controllers. Coexists with Minimal API endpoints during migration.
+        // [ApiController] enables automatic 400 ProblemDetails on model-binding
+        // failures, model validation, and convention-based [FromBody] inference.
+        builder.Services.AddControllers();
+
+        // Per-feature DI registration. Each feature owns its own AddXxxFeature
+        // extension; this keeps controllers, handlers, and repositories close
+        // to the code that uses them.
+        builder.AddCategoriesFeature();
     }
 }

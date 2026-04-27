@@ -41,10 +41,15 @@ public static class ConfigureApp
             });
         }
 
-        // 5. Endpoint maps. RegisterXxxEndpoints adds routes to the table;
-        //    when matched at runtime, RequireAuthorization metadata is honoured
-        //    by the UseAuthorization middleware above.
-        app.RegisterCategoriesEndpoints();
+        // 5. Endpoint maps.
+        //    - MapControllers picks up classes annotated [ApiController] /
+        //      [Route]; this is the destination shape.
+        //    - RegisterXxxEndpoints are the legacy Minimal API maps still
+        //      to migrate; both kinds coexist while we move features over.
+        app.MapControllers();
+
+        // Legacy Minimal API endpoints; remove each as its feature migrates
+        // to a controller. Categories has migrated.
         app.RegisterSubCategoriesEndpoints();
         app.RegisterProductsEndpoints();
         app.RegisterUsersEndpoints();
