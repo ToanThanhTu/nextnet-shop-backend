@@ -1,5 +1,6 @@
 using net_backend.Categories;
 using net_backend.Configuration;
+using net_backend.SubCategories;
 
 namespace net_backend;
 
@@ -30,5 +31,6 @@ public static class ConfigureServices
         // extension; this keeps controllers, handlers, and repositories close
         // to the code that uses them.
         builder.AddCategoriesFeature();
+        builder.AddSubCategoriesFeature();
     }
 }
