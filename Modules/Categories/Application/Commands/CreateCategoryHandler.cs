@@ -1,8 +1,8 @@
-using net_backend.Categories.Contracts;
-using net_backend.Categories.Domain;
+using net_backend.Modules.Categories.Contracts;
+using net_backend.Modules.Categories.Domain;
 using net_backend.Data.Types;
 
-namespace net_backend.Categories.Application.Commands;
+namespace net_backend.Modules.Categories.Application.Commands;
 
 /// <summary>
 /// Create a new category from a validated request. Returns the persisted

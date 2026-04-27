@@ -1,9 +1,9 @@
-using net_backend.Categories.Application.Commands;
-using net_backend.Categories.Application.Queries;
-using net_backend.Categories.Domain;
-using net_backend.Categories.Infrastructure;
+using net_backend.Modules.Categories.Application.Commands;
+using net_backend.Modules.Categories.Application.Queries;
+using net_backend.Modules.Categories.Domain;
+using net_backend.Modules.Categories.Infrastructure;
 
-namespace net_backend.Categories;
+namespace net_backend.Modules.Categories;
 
 /// <summary>
 /// DI registration for the Categories feature. Keeps the wiring close to

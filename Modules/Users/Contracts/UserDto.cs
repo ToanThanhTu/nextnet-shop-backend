@@ -1,6 +1,6 @@
 using net_backend.Data.Types;
 
-namespace net_backend.Users.Contracts;
+namespace net_backend.Modules.Users.Contracts;
 
 /// <summary>
 /// Public-safe user shape. Excludes PasswordHash and the User's

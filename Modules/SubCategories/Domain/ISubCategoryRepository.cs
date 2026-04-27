@@ -1,6 +1,6 @@
 using net_backend.Data.Types;
 
-namespace net_backend.SubCategories.Domain;
+namespace net_backend.Modules.SubCategories.Domain;
 
 /// <summary>
 /// The SubCategory aggregate's persistence contract. SubCategories belong

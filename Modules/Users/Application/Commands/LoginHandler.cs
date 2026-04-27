@@ -1,7 +1,7 @@
-using net_backend.Users.Contracts;
-using net_backend.Users.Domain;
+using net_backend.Modules.Users.Contracts;
+using net_backend.Modules.Users.Domain;
 
-namespace net_backend.Users.Application.Commands;
+namespace net_backend.Modules.Users.Application.Commands;
 
 /// <summary>
 /// Orchestrates the three concerns of "logging in":

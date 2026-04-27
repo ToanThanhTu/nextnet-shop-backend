@@ -1,9 +1,9 @@
-using net_backend.Products.Application.Commands;
-using net_backend.Products.Application.Queries;
-using net_backend.Products.Domain;
-using net_backend.Products.Infrastructure;
+using net_backend.Modules.Products.Application.Commands;
+using net_backend.Modules.Products.Application.Queries;
+using net_backend.Modules.Products.Domain;
+using net_backend.Modules.Products.Infrastructure;
 
-namespace net_backend.Products;
+namespace net_backend.Modules.Products;
 
 public static class ProductsModule
 {

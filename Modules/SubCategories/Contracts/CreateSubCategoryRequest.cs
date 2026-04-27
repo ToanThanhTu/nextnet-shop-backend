@@ -1,6 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 
-namespace net_backend.SubCategories.Contracts;
+namespace net_backend.Modules.SubCategories.Contracts;
 
 public record CreateSubCategoryRequest(
     [Required, StringLength(50, MinimumLength = 1)]

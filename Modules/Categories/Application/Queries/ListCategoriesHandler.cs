@@ -1,7 +1,7 @@
-using net_backend.Categories.Contracts;
-using net_backend.Categories.Domain;
+using net_backend.Modules.Categories.Contracts;
+using net_backend.Modules.Categories.Domain;
 
-namespace net_backend.Categories.Application.Queries;
+namespace net_backend.Modules.Categories.Application.Queries;
 
 /// <summary>
 /// Lists all categories with their subcategories. Read-only; no side effects.

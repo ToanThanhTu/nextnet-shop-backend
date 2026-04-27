@@ -1,4 +1,4 @@
-namespace net_backend.Users;
+namespace net_backend.Modules.Users;
 
 /// <summary>
 /// Strongly-typed configuration for JWT issuance and validation.

@@ -1,12 +1,12 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using net_backend.Common.Auth;
-using net_backend.Products.Application.Commands;
-using net_backend.Products.Application.Queries;
-using net_backend.Products.Contracts;
-using net_backend.Products.Domain;
+using net_backend.Modules.Products.Application.Commands;
+using net_backend.Modules.Products.Application.Queries;
+using net_backend.Modules.Products.Contracts;
+using net_backend.Modules.Products.Domain;
 
-namespace net_backend.Products;
+namespace net_backend.Modules.Products;
 
 [ApiController]
 [Route("products")]

@@ -1,9 +1,9 @@
-using net_backend.Cart.Application.Commands;
-using net_backend.Cart.Application.Queries;
-using net_backend.Cart.Domain;
-using net_backend.Cart.Infrastructure;
+using net_backend.Modules.Cart.Application.Commands;
+using net_backend.Modules.Cart.Application.Queries;
+using net_backend.Modules.Cart.Domain;
+using net_backend.Modules.Cart.Infrastructure;
 
-namespace net_backend.Cart;
+namespace net_backend.Modules.Cart;
 
 public static class CartModule
 {

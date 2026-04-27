@@ -1,11 +1,11 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using net_backend.Categories.Application.Commands;
-using net_backend.Categories.Application.Queries;
-using net_backend.Categories.Contracts;
-using net_backend.Categories.Domain;
+using net_backend.Modules.Categories.Application.Commands;
+using net_backend.Modules.Categories.Application.Queries;
+using net_backend.Modules.Categories.Contracts;
+using net_backend.Modules.Categories.Domain;
 
-namespace net_backend.Categories;
+namespace net_backend.Modules.Categories;
 
 /// <summary>
 /// HTTP adapter for the Category aggregate. Each action method is a thin

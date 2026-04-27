@@ -1,10 +1,10 @@
-using net_backend.Cart;
-using net_backend.Categories;
+using net_backend.Modules.Cart;
+using net_backend.Modules.Categories;
 using net_backend.Configuration;
-using net_backend.Orders;
-using net_backend.Products;
-using net_backend.SubCategories;
-using net_backend.Users;
+using net_backend.Modules.Orders;
+using net_backend.Modules.Products;
+using net_backend.Modules.SubCategories;
+using net_backend.Modules.Users;
 
 namespace net_backend;
 

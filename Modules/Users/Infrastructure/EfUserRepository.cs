@@ -1,8 +1,8 @@
 using Microsoft.EntityFrameworkCore;
 using net_backend.Data.Types;
-using net_backend.Users.Domain;
+using net_backend.Modules.Users.Domain;
 
-namespace net_backend.Users.Infrastructure;
+namespace net_backend.Modules.Users.Infrastructure;
 
 public class EfUserRepository(AppDbContext db) : IUserRepository
 {

@@ -1,6 +1,6 @@
 using net_backend.Data.Types;
 
-namespace net_backend.Categories.Domain;
+namespace net_backend.Modules.Categories.Domain;
 
 /// <summary>
 /// The Category aggregate's persistence contract. Application-layer

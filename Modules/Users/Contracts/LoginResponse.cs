@@ -1,3 +1,3 @@
-namespace net_backend.Users.Contracts;
+namespace net_backend.Modules.Users.Contracts;
 
 public record LoginResponse(UserDto User, string Token);

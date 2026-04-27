@@ -1,8 +1,8 @@
 using Microsoft.EntityFrameworkCore;
 using net_backend.Data.Types;
-using net_backend.Orders.Domain;
+using net_backend.Modules.Orders.Domain;
 
-namespace net_backend.Orders.Infrastructure;
+namespace net_backend.Modules.Orders.Infrastructure;
 
 public class EfOrderRepository(AppDbContext db) : IOrderRepository
 {

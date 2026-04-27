@@ -1,7 +1,7 @@
-using net_backend.Cart.Contracts;
-using net_backend.Cart.Domain;
+using net_backend.Modules.Cart.Contracts;
+using net_backend.Modules.Cart.Domain;
 
-namespace net_backend.Cart.Application.Commands;
+namespace net_backend.Modules.Cart.Application.Commands;
 
 /// <summary>
 /// Replace the user's server-side cart with the items the client supplies.

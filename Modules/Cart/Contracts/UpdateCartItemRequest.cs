@@ -1,6 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 
-namespace net_backend.Cart.Contracts;
+namespace net_backend.Modules.Cart.Contracts;
 
 /// <summary>
 /// PUT /cart/items body. Sets <c>Quantity</c> as the new absolute value

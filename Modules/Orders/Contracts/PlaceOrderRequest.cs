@@ -1,6 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 
-namespace net_backend.Orders.Contracts;
+namespace net_backend.Modules.Orders.Contracts;
 
 /// <summary>
 /// POST /orders body. The client sends each cart item with the price it

@@ -1,10 +1,10 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using net_backend.Users.Application.Commands;
-using net_backend.Users.Application.Queries;
-using net_backend.Users.Contracts;
+using net_backend.Modules.Users.Application.Commands;
+using net_backend.Modules.Users.Application.Queries;
+using net_backend.Modules.Users.Contracts;
 
-namespace net_backend.Users;
+namespace net_backend.Modules.Users;
 
 [ApiController]
 [Route("users")]

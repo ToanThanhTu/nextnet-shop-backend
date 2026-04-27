@@ -1,7 +1,7 @@
-using net_backend.Cart.Contracts;
-using net_backend.Cart.Domain;
+using net_backend.Modules.Cart.Contracts;
+using net_backend.Modules.Cart.Domain;
 
-namespace net_backend.Cart.Application.Queries;
+namespace net_backend.Modules.Cart.Application.Queries;
 
 public class GetMyCartHandler(ICartRepository repo)
 {

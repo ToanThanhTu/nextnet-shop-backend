@@ -1,6 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 
-namespace net_backend.Products.Contracts;
+namespace net_backend.Modules.Products.Contracts;
 
 /// <summary>
 /// Input shape for POST /products. Excludes computed columns (Slug,

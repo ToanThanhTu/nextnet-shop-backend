@@ -1,8 +1,8 @@
 using net_backend.Common.Exceptions;
-using net_backend.Products.Contracts;
-using net_backend.Products.Domain;
+using net_backend.Modules.Products.Contracts;
+using net_backend.Modules.Products.Domain;
 
-namespace net_backend.Products.Application.Queries;
+namespace net_backend.Modules.Products.Application.Queries;
 
 public class GetProductByIdHandler(IProductRepository repo)
 {

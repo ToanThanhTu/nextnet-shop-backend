@@ -1,9 +1,9 @@
 using Microsoft.EntityFrameworkCore;
 using net_backend.Common.Exceptions;
 using net_backend.Data.Types;
-using net_backend.Orders.Contracts;
+using net_backend.Modules.Orders.Contracts;
 
-namespace net_backend.Orders.Domain;
+namespace net_backend.Modules.Orders.Domain;
 
 /// <summary>
 /// Domain service for the "place an order from the user's cart" use case.

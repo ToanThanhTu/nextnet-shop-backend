@@ -1,6 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 
-namespace net_backend.Users.Contracts;
+namespace net_backend.Modules.Users.Contracts;
 
 public record LoginRequest(
     [Required, EmailAddress, StringLength(254)]

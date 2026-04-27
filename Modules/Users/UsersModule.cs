@@ -1,9 +1,9 @@
-using net_backend.Users.Application.Commands;
-using net_backend.Users.Application.Queries;
-using net_backend.Users.Domain;
-using net_backend.Users.Infrastructure;
+using net_backend.Modules.Users.Application.Commands;
+using net_backend.Modules.Users.Application.Queries;
+using net_backend.Modules.Users.Domain;
+using net_backend.Modules.Users.Infrastructure;
 
-namespace net_backend.Users;
+namespace net_backend.Modules.Users;
 
 public static class UsersModule
 {

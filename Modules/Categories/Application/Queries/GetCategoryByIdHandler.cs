@@ -1,8 +1,8 @@
-using net_backend.Categories.Contracts;
-using net_backend.Categories.Domain;
+using net_backend.Modules.Categories.Contracts;
+using net_backend.Modules.Categories.Domain;
 using net_backend.Common.Exceptions;
 
-namespace net_backend.Categories.Application.Queries;
+namespace net_backend.Modules.Categories.Application.Queries;
 
 /// <summary>
 /// Fetch a single category by id. Throws NotFoundException if absent so the

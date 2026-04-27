@@ -1,7 +1,7 @@
 using net_backend.Data.Types;
-using net_backend.Products.Contracts;
+using net_backend.Modules.Products.Contracts;
 
-namespace net_backend.Products.Domain;
+namespace net_backend.Modules.Products.Domain;
 
 /// <summary>
 /// Persistence contract for the Product aggregate.

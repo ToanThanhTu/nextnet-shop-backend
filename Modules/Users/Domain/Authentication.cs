@@ -1,7 +1,7 @@
 using net_backend.Common.Exceptions;
 using net_backend.Data.Types;
 
-namespace net_backend.Users.Domain;
+namespace net_backend.Modules.Users.Domain;
 
 /// <summary>
 /// Domain service for "verify a user's email + password." Returns the

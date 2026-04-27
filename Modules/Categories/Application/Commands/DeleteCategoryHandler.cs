@@ -1,7 +1,7 @@
-using net_backend.Categories.Domain;
+using net_backend.Modules.Categories.Domain;
 using net_backend.Common.Exceptions;
 
-namespace net_backend.Categories.Application.Commands;
+namespace net_backend.Modules.Categories.Application.Commands;
 
 /// <summary>
 /// Delete a category by id. Throws NotFoundException if absent so the

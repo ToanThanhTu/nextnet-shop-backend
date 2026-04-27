@@ -1,9 +1,9 @@
-using net_backend.Orders.Application.Commands;
-using net_backend.Orders.Application.Queries;
-using net_backend.Orders.Domain;
-using net_backend.Orders.Infrastructure;
+using net_backend.Modules.Orders.Application.Commands;
+using net_backend.Modules.Orders.Application.Queries;
+using net_backend.Modules.Orders.Domain;
+using net_backend.Modules.Orders.Infrastructure;
 
-namespace net_backend.Orders;
+namespace net_backend.Modules.Orders;
 
 public static class OrdersModule
 {

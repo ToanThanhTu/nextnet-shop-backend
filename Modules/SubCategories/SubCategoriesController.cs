@@ -1,11 +1,11 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using net_backend.SubCategories.Application.Commands;
-using net_backend.SubCategories.Application.Queries;
-using net_backend.SubCategories.Contracts;
-using net_backend.SubCategories.Domain;
+using net_backend.Modules.SubCategories.Application.Commands;
+using net_backend.Modules.SubCategories.Application.Queries;
+using net_backend.Modules.SubCategories.Contracts;
+using net_backend.Modules.SubCategories.Domain;
 
-namespace net_backend.SubCategories;
+namespace net_backend.Modules.SubCategories;
 
 [ApiController]
 [Route("subcategories")]

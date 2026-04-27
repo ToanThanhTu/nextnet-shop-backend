@@ -1,8 +1,8 @@
 using Microsoft.EntityFrameworkCore;
-using net_backend.Categories.Domain;
+using net_backend.Modules.Categories.Domain;
 using net_backend.Data.Types;
 
-namespace net_backend.Categories.Infrastructure;
+namespace net_backend.Modules.Categories.Infrastructure;
 
 /// <summary>
 /// EF Core implementation of ICategoryRepository. The only place in the

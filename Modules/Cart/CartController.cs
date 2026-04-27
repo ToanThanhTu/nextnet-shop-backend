@@ -1,11 +1,11 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using net_backend.Cart.Application.Commands;
-using net_backend.Cart.Application.Queries;
-using net_backend.Cart.Contracts;
+using net_backend.Modules.Cart.Application.Commands;
+using net_backend.Modules.Cart.Application.Queries;
+using net_backend.Modules.Cart.Contracts;
 using net_backend.Common.Auth;
 
-namespace net_backend.Cart;
+namespace net_backend.Modules.Cart;
 
 /// <summary>
 /// Cart endpoints scoped to the authenticated user. The user id always

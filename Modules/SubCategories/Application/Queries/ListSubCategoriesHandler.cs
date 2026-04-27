@@ -1,7 +1,7 @@
-using net_backend.SubCategories.Contracts;
-using net_backend.SubCategories.Domain;
+using net_backend.Modules.SubCategories.Contracts;
+using net_backend.Modules.SubCategories.Domain;
 
-namespace net_backend.SubCategories.Application.Queries;
+namespace net_backend.Modules.SubCategories.Application.Queries;
 
 public class ListSubCategoriesHandler(ISubCategoryRepository repo)
 {

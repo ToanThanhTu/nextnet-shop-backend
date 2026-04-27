@@ -1,7 +1,7 @@
-using net_backend.Orders.Contracts;
-using net_backend.Orders.Domain;
+using net_backend.Modules.Orders.Contracts;
+using net_backend.Modules.Orders.Domain;
 
-namespace net_backend.Orders.Application.Commands;
+namespace net_backend.Modules.Orders.Application.Commands;
 
 /// <summary>
 /// Thin handler that delegates to the OrderPlacement domain service.

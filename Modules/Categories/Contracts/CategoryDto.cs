@@ -1,6 +1,6 @@
 using net_backend.Data.Types;
 
-namespace net_backend.Categories.Contracts;
+namespace net_backend.Modules.Categories.Contracts;
 
 /// <summary>
 /// Wire-format Category. Don't return entities directly from controllers;

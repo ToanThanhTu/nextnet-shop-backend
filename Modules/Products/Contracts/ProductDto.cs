@@ -1,7 +1,7 @@
 using System.Linq.Expressions;
 using net_backend.Data.Types;
 
-namespace net_backend.Products.Contracts;
+namespace net_backend.Modules.Products.Contracts;
 
 /// <summary>
 /// Wire shape for a product. Fix for audit S4 (8x duplicated DTO projections):

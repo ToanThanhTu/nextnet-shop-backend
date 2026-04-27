@@ -1,7 +1,7 @@
-using net_backend.Users.Contracts;
-using net_backend.Users.Domain;
+using net_backend.Modules.Users.Contracts;
+using net_backend.Modules.Users.Domain;
 
-namespace net_backend.Users.Application.Queries;
+namespace net_backend.Modules.Users.Application.Queries;
 
 public class ListUsersHandler(IUserRepository repo)
 {

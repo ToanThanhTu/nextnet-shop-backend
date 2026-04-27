@@ -1,6 +1,6 @@
 using net_backend.Data.Types;
 
-namespace net_backend.Cart.Contracts;
+namespace net_backend.Modules.Cart.Contracts;
 
 /// <summary>
 /// Wire shape for a cart item. Embeds a slim product summary so the cart

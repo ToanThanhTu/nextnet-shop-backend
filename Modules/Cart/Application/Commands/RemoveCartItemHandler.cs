@@ -1,7 +1,7 @@
-using net_backend.Cart.Domain;
+using net_backend.Modules.Cart.Domain;
 using net_backend.Common.Exceptions;
 
-namespace net_backend.Cart.Application.Commands;
+namespace net_backend.Modules.Cart.Application.Commands;
 
 public class RemoveCartItemHandler(ICartRepository repo)
 {

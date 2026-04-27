@@ -1,4 +1,4 @@
-namespace net_backend.Products.Contracts;
+namespace net_backend.Modules.Products.Contracts;
 
 /// <summary>
 /// Query string parameters for the list endpoints. Bound from the URL via

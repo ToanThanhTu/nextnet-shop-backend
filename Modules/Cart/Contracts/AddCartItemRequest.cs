@@ -1,6 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 
-namespace net_backend.Cart.Contracts;
+namespace net_backend.Modules.Cart.Contracts;
 
 /// <summary>
 /// POST /cart/items body. Adds <c>Quantity</c> units of the product to the

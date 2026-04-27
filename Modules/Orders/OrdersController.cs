@@ -1,11 +1,11 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using net_backend.Common.Auth;
-using net_backend.Orders.Application.Commands;
-using net_backend.Orders.Application.Queries;
-using net_backend.Orders.Contracts;
+using net_backend.Modules.Orders.Application.Commands;
+using net_backend.Modules.Orders.Application.Queries;
+using net_backend.Modules.Orders.Contracts;
 
-namespace net_backend.Orders;
+namespace net_backend.Modules.Orders;
 
 /// <summary>
 /// Order endpoints. The user id always comes from the JWT NameIdentifier

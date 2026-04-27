@@ -1,7 +1,7 @@
-using net_backend.Orders.Contracts;
-using net_backend.Orders.Domain;
+using net_backend.Modules.Orders.Contracts;
+using net_backend.Modules.Orders.Domain;
 
-namespace net_backend.Orders.Application.Queries;
+namespace net_backend.Modules.Orders.Application.Queries;
 
 public class GetMyOrdersHandler(IOrderRepository repo)
 {

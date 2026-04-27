@@ -1,9 +1,9 @@
 using Microsoft.EntityFrameworkCore;
 using net_backend.Data.Types;
-using net_backend.Products.Contracts;
-using net_backend.Products.Domain;
+using net_backend.Modules.Products.Contracts;
+using net_backend.Modules.Products.Domain;
 
-namespace net_backend.Products.Infrastructure;
+namespace net_backend.Modules.Products.Infrastructure;
 
 public class EfProductRepository(AppDbContext db) : IProductRepository
 {

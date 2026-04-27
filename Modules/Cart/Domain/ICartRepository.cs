@@ -1,6 +1,6 @@
 using net_backend.Data.Types;
 
-namespace net_backend.Cart.Domain;
+namespace net_backend.Modules.Cart.Domain;
 
 /// <summary>
 /// Cart aggregate's persistence contract. All queries and mutations are

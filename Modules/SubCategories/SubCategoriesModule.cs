@@ -1,9 +1,9 @@
-using net_backend.SubCategories.Application.Commands;
-using net_backend.SubCategories.Application.Queries;
-using net_backend.SubCategories.Domain;
-using net_backend.SubCategories.Infrastructure;
+using net_backend.Modules.SubCategories.Application.Commands;
+using net_backend.Modules.SubCategories.Application.Queries;
+using net_backend.Modules.SubCategories.Domain;
+using net_backend.Modules.SubCategories.Infrastructure;
 
-namespace net_backend.SubCategories;
+namespace net_backend.Modules.SubCategories;
 
 public static class SubCategoriesModule
 {

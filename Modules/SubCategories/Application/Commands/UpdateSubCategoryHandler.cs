@@ -1,9 +1,9 @@
-using net_backend.Categories.Domain;
+using net_backend.Modules.Categories.Domain;
 using net_backend.Common.Exceptions;
-using net_backend.SubCategories.Contracts;
-using net_backend.SubCategories.Domain;
+using net_backend.Modules.SubCategories.Contracts;
+using net_backend.Modules.SubCategories.Domain;
 
-namespace net_backend.SubCategories.Application.Commands;
+namespace net_backend.Modules.SubCategories.Application.Commands;
 
 public class UpdateSubCategoryHandler(
     ISubCategoryRepository subCategoryRepo,

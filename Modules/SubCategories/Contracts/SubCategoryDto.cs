@@ -1,6 +1,6 @@
 using net_backend.Data.Types;
 
-namespace net_backend.SubCategories.Contracts;
+namespace net_backend.Modules.SubCategories.Contracts;
 
 public record SubCategoryDto(
     int Id,

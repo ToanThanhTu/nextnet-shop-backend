@@ -1,6 +1,6 @@
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
-using net_backend.Users;
+using net_backend.Modules.Users;
 
 namespace net_backend.Configuration;
 

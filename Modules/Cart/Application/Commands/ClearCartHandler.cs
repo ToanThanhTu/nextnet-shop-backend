@@ -1,6 +1,6 @@
-using net_backend.Cart.Domain;
+using net_backend.Modules.Cart.Domain;
 
-namespace net_backend.Cart.Application.Commands;
+namespace net_backend.Modules.Cart.Application.Commands;
 
 public class ClearCartHandler(ICartRepository repo)
 {

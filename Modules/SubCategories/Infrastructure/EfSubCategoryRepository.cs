@@ -1,8 +1,8 @@
 using Microsoft.EntityFrameworkCore;
 using net_backend.Data.Types;
-using net_backend.SubCategories.Domain;
+using net_backend.Modules.SubCategories.Domain;
 
-namespace net_backend.SubCategories.Infrastructure;
+namespace net_backend.Modules.SubCategories.Infrastructure;
 
 public class EfSubCategoryRepository(AppDbContext db) : ISubCategoryRepository
 {

@@ -4,7 +4,7 @@ using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
 using net_backend.Data.Types;
 
-namespace net_backend.Users;
+namespace net_backend.Modules.Users;
 
 /// <summary>
 /// Issues JWT bearer tokens for authenticated users.

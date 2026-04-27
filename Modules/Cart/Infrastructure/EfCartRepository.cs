@@ -1,8 +1,8 @@
 using Microsoft.EntityFrameworkCore;
-using net_backend.Cart.Domain;
+using net_backend.Modules.Cart.Domain;
 using net_backend.Data.Types;
 
-namespace net_backend.Cart.Infrastructure;
+namespace net_backend.Modules.Cart.Infrastructure;
 
 public class EfCartRepository(AppDbContext db) : ICartRepository
 {

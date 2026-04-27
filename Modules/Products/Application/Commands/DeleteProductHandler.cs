@@ -1,7 +1,7 @@
 using net_backend.Common.Exceptions;
-using net_backend.Products.Domain;
+using net_backend.Modules.Products.Domain;
 
-namespace net_backend.Products.Application.Commands;
+namespace net_backend.Modules.Products.Application.Commands;
 
 public class DeleteProductHandler(IProductRepository repo)
 {

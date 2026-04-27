@@ -1,6 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 
-namespace net_backend.Products.Contracts;
+namespace net_backend.Modules.Products.Contracts;
 
 public record UpdateProductRequest(
     [Required, StringLength(50, MinimumLength = 1)] string Title,

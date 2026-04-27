@@ -1,6 +1,6 @@
 using net_backend.Data.Types;
 
-namespace net_backend.Orders.Contracts;
+namespace net_backend.Modules.Orders.Contracts;
 
 public record OrderDto(
     int Id,

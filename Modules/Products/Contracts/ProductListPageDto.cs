@@ -1,4 +1,4 @@
-namespace net_backend.Products.Contracts;
+namespace net_backend.Modules.Products.Contracts;
 
 /// <summary>
 /// Paginated list response. Frontend reads { products, totalItems }

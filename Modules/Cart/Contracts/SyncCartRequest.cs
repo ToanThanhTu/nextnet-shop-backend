@@ -1,6 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 
-namespace net_backend.Cart.Contracts;
+namespace net_backend.Modules.Cart.Contracts;
 
 /// <summary>
 /// POST /cart/sync body. Replaces the user's server cart with these items.

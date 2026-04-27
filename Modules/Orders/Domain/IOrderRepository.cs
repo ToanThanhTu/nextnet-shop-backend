@@ -1,6 +1,6 @@
 using net_backend.Data.Types;
 
-namespace net_backend.Orders.Domain;
+namespace net_backend.Modules.Orders.Domain;
 
 public interface IOrderRepository
 {

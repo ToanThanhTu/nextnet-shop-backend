@@ -1,8 +1,8 @@
 using net_backend.Common.Exceptions;
-using net_backend.Orders.Contracts;
-using net_backend.Orders.Domain;
+using net_backend.Modules.Orders.Contracts;
+using net_backend.Modules.Orders.Domain;
 
-namespace net_backend.Orders.Application.Commands;
+namespace net_backend.Modules.Orders.Application.Commands;
 
 /// <summary>
 /// Update an order's status. Admin-only at the controller layer.

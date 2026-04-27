@@ -1,8 +1,8 @@
-using net_backend.Cart.Contracts;
-using net_backend.Cart.Domain;
+using net_backend.Modules.Cart.Contracts;
+using net_backend.Modules.Cart.Domain;
 using net_backend.Data.Types;
 
-namespace net_backend.Cart.Application.Commands;
+namespace net_backend.Modules.Cart.Application.Commands;
 
 /// <summary>
 /// Add to cart: if the user already has this product, increment the

@@ -1,6 +1,6 @@
 using net_backend.Data.Types;
 
-namespace net_backend.Products.Contracts;
+namespace net_backend.Modules.Products.Contracts;
 
 /// <summary>
 /// Product detail page response: the product plus its subcategory and
