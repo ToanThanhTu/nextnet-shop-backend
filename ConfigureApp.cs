@@ -1,12 +1,9 @@
-using net_backend.Products;
-
 namespace net_backend;
 
 /// <summary>
 /// Application request pipeline. Middleware order matters here:
 /// each Use* call adds a middleware in the order requests flow through.
-/// Endpoint maps (RegisterXxxEndpoints) only add routes to the table; the
-/// runtime order is determined by the Use* placements above.
+/// All features are now MVC controllers picked up by MapControllers.
 /// </summary>
 public static class ConfigureApp
 {
@@ -37,16 +34,10 @@ public static class ConfigureApp
             });
         }
 
-        // 5. Endpoint maps.
-        //    - MapControllers picks up classes annotated [ApiController] /
-        //      [Route]; this is the destination shape.
-        //    - RegisterXxxEndpoints are the legacy Minimal API maps still
-        //      to migrate; both kinds coexist while we move features over.
+        // 5. Endpoint maps. MapControllers picks up classes annotated
+        //    [ApiController] / [Route]; every feature now lives under
+        //    its own *Controller and is routed automatically.
         app.MapControllers();
-
-        // Legacy Minimal API endpoints; remove each as its feature migrates
-        // to a controller. Migrated: Categories, SubCategories, Cart, Orders, Users.
-        app.RegisterProductsEndpoints();
 
         return Task.CompletedTask;
     }
