@@ -1,4 +1,3 @@
-using net_backend.Cart;
 using net_backend.Orders;
 using net_backend.Products;
 using net_backend.Users;
@@ -48,10 +47,9 @@ public static class ConfigureApp
         app.MapControllers();
 
         // Legacy Minimal API endpoints; remove each as its feature migrates
-        // to a controller. Migrated: Categories, SubCategories.
+        // to a controller. Migrated: Categories, SubCategories, Cart.
         app.RegisterProductsEndpoints();
         app.RegisterUsersEndpoints();
-        app.RegisterCartEndpoints();
         app.RegisterOrdersEndpoints();
 
         return Task.CompletedTask;

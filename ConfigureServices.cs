@@ -1,3 +1,4 @@
+using net_backend.Cart;
 using net_backend.Categories;
 using net_backend.Configuration;
 using net_backend.SubCategories;
@@ -32,5 +33,6 @@ public static class ConfigureServices
         // to the code that uses them.
         builder.AddCategoriesFeature();
         builder.AddSubCategoriesFeature();
+        builder.AddCartFeature();
     }
 }
