@@ -17,6 +17,7 @@ public static class ConfigureServices
             .AddSwagger()
             .AddDatabase()
             .AddJwtAuthentication()
-            .AddAuthorizationPolicies();
+            .AddAuthorizationPolicies()
+            .AddGlobalExceptionHandler();
     }
 }
