@@ -2,116 +2,206 @@
 
 Stack-specific rules for `net-backend`. Project-wide conventions live in `../CLAUDE.md`.
 
-## Architecture: feature modules with extension methods
+## Architecture: modular monolith with DDD layers
 
-Each feature is a folder at the root (`Categories/`, `Products/`, `Users/`, `Cart/`, `Orders/`). Each folder owns a single `*Endpoints.cs` file (Subcategories share the Categories folder).
+Each bounded context lives under `Modules/<Feature>/` with its own DDD layers. Cross-cutting infrastructure stays at the project root.
 
-The pattern is:
+```
+net-backend/
+├── Configuration/                # cross-cutting service registration
+│   ├── KestrelConfiguration.cs
+│   ├── CorsConfiguration.cs
+│   ├── OpenApiConfiguration.cs
+│   ├── DatabaseConfiguration.cs
+│   ├── AuthConfiguration.cs
+│   └── ExceptionHandlingConfiguration.cs
+├── Common/                       # cross-cutting code
+│   ├── Auth/UserContextExtensions.cs
+│   └── Exceptions/{AppException, NotFoundException, ValidationException,
+│                   ConflictException, ForbiddenException, UnauthorizedException,
+│                   GlobalExceptionHandler}.cs
+├── Data/                         # EF model
+│   ├── AppDbContext.cs
+│   └── Types/                    # entities and supporting types
+├── Migrations/                   # EF Core migrations
+├── Modules/<Feature>/            # bounded contexts
+│   ├── Domain/                   # interfaces + entity-aware logic
+│   ├── Infrastructure/           # EF implementations
+│   ├── Application/
+│   │   ├── Queries/              # read use cases (one file each)
+│   │   └── Commands/             # write use cases (one file each)
+│   ├── Contracts/                # DTOs and Request types
+│   ├── <Feature>Controller.cs    # thin HTTP adapter
+│   └── <Feature>Module.cs        # per-feature DI registration
+├── ConfigureApp.cs               # request pipeline
+├── ConfigureServices.cs          # orchestrates Configuration + Modules
+└── Program.cs                    # 10-line entry point
+```
+
+A new feature = a new `Modules/<Feature>/` folder, plus one line in `ConfigureServices.AddServices` to register its module. Nothing else changes.
+
+## The DDD layers (per module)
+
+| Layer | Job | Knows about |
+|---|---|---|
+| Domain | Entity logic + repository interface + domain services | Pure types and other domain interfaces |
+| Infrastructure | EF Core implementation of repository interfaces | Domain + EF + AppDbContext |
+| Application | Use cases: one Handler per query / command | Domain interfaces only |
+| Contracts | DTOs and validated request types | Plain types + DataAnnotations |
+| Controller | HTTP adapter: validate + read claims + call handler + project | All of the above |
+
+Dependencies always point **inward**: Controller → Application → Domain. Infrastructure plugs in via DI as the implementation of a Domain interface.
+
+## Routing pattern
+
+All routes are unprefixed (no `/api/...`). Controllers use lowercase explicit routes to preserve the public API the frontend depends on:
 
 ```csharp
-public static class FooEndpoints
+[ApiController]
+[Route("categories")]               // explicit lowercase, not [controller]
+public class CategoriesController(...) : ControllerBase
 {
-    public static void RegisterFooEndpoints(this WebApplication app)
-    {
-        var foo = app.MapGroup("/foo");
-        foo.MapGet("/", GetAll);
-        foo.MapPost("/", Create).RequireAuthorization("Admin");
-        // ...
+    [HttpGet("")]
+    public async Task<ActionResult<List<CategoryDto>>> List(...) { ... }
 
-        static async Task<IResult> GetAll(AppDbContext db) { ... }
-        // ...
-    }
+    [HttpPost("")]
+    [Authorize(Policy = "Admin")]
+    public async Task<ActionResult<CategoryDto>> Create([FromBody] CreateCategoryRequest req, ...) { ... }
 }
 ```
 
-Handlers are local static functions inside the `Register*Endpoints` method, declared after the route registrations. They take dependencies as parameters (DI is per-handler, not per-class).
+Tokens to know:
+- `[ApiController]` enables auto 400 ProblemDetails on model-binding failure, automatic `[FromBody]`, and other niceties.
+- `[Route("xxx")]` sets the controller's base path. Methods add segments via `[HttpGet("...")]`.
+- Route constraints (`{id:int}`, `{slug}`) disambiguate when two methods share a base path.
 
-`ConfigureApp.Configure` calls each `Register*Endpoints` extension after the middleware pipeline is set up.
+## Return types: `IResult` is gone, `IActionResult` rules
 
-## Routes are unprefixed
+Action methods return:
+- `ActionResult<TDto>` for success-with-body endpoints. The `T` flows into OpenAPI as the success shape; helpers on `ControllerBase` produce HTTP responses (`Ok`, `CreatedAtAction`, `NotFound`, `BadRequest`, `NoContent`, `File`, etc.).
+- `IActionResult` for actions where the response shape varies (e.g. `File(...)` for image bytes, `NoContent()` after a delete).
 
-Routes do not use `/api/...`. They sit at the top level: `/categories`, `/products/all/`, `/users/login`, etc. Don't introduce an `/api` prefix without changing every existing route and the frontend's expectations (the Next.js middleware already strips `/api/` before forwarding).
+Don't use `Results.*` / `TypedResults.*` (those are Minimal API only).
 
-## Return types: `IResult` + `TypedResults`
+## Authorization model
 
-Handlers return `Task<IResult>` and use `TypedResults.Ok(...)`, `TypedResults.NotFound()`, `TypedResults.Created(uri, value)`, `TypedResults.BadRequest(message)`, etc. `TypedResults` over `Results` because:
-
-- the return type is preserved at compile time (testable),
-- response metadata is automatically attached for OpenAPI.
-
-Don't mix the two styles in a single handler.
-
-## DTOs over entities at the API boundary
-
-Endpoints project entities into DTOs (`Data/Types/*DTO.cs`) before returning. Don't return raw `Product`, `User`, etc.; serialisation can leak fields (e.g. `PasswordHash`) and EF tracking annotations.
-
-Use `.AsNoTracking()` for read-only queries and project directly into the DTO via `Select(...)` to avoid loading unused columns.
-
-## Database
-
-- DbContext: `Data/AppDbContext.cs`. All `DbSet`s + `OnModelCreating` configuration (table names, FKs, indexes, computed columns).
-- Tables use lowercase plural names; entity classes use PascalCase singular.
-- Cascading deletes are configured for parent-child aggregates (User → Orders/CartItems, Category → SubCategories, etc.).
-- Indexes: `Product.SubCategoryId`, `SubCategory.CategoryId`, `Order.UserId`, `OrderItem.OrderId`, `CartItem.UserId`.
-- Computed columns: `Category.slug`, `SubCategory.slug`, `Product.slug` (lower-replace title), `Product.sale_price` (price × (1 - sale/100)). Declared via `HasComputedColumnSql(..., stored: true)` so EF knows not to insert them.
-- Connection string: parsed via `System.Uri` + `NpgsqlConnectionStringBuilder` in `ConfigureServices.ParsePostgresUrl`. Pass `postgres://...` URL form, not Npgsql key=value.
-
-## Authentication and authorization
-
-JWT bearer auth is wired in `ConfigureServices.AddJwtAuthentication` and the middleware (`UseAuthentication` + `UseAuthorization`) is enabled in `ConfigureApp.Configure`. Endpoints opt into auth at registration:
+Middleware is enabled in `ConfigureApp.Configure` (`UseAuthentication` + `UseAuthorization`). Endpoints opt in at attribute time:
 
 ```csharp
-group.MapPost("/", Create).RequireAuthorization("Admin");   // requires Admin role
-group.MapGet("/", List).RequireAuthorization();              // any authenticated user
-group.MapGet("/public", Read);                               // public, no auth
+[Authorize]                         // any authenticated user
+[Authorize(Policy = "Admin")]       // RequireRole("Admin")
+// no attribute = public
 ```
 
-Named policies live in `ConfigureServices.AddAuthorizationPolicies`. Today only `"Admin"` is defined (`RequireRole("Admin")`). Add more there.
+Policies live in `Configuration/AuthConfiguration.AddAuthorizationPolicies`. Today: `"Admin"`. Add new ones there.
 
-Token issuance is `JwtTokenHelper.GenerateToken(user)`, registered as a singleton; inject it as a parameter into login-style handlers. The helper uses the same `IOptions<JwtOptions>` that `AddJwtAuthentication` reads, so issuance and validation share configuration.
+JWT issuance + validation share `IOptions<JwtOptions>`. Issuance is `Modules/Users/Domain/JwtTokenHelper`; validation is registered by `AuthConfiguration.AddJwtAuthentication`. Both read from the `Jwt` config section.
 
-JWT config lives in the `Jwt` section (`Jwt:Issuer`, `Jwt:Audience`, `Jwt:SigningKey`, `Jwt:ExpirationMinutes`). In dev, defaults are in `appsettings.json`. In prod, set `Jwt__SigningKey` via `fly secrets set`.
+## Reading the user from the JWT claim
 
-## Adding auth to a new endpoint
+Never accept a `userId` in a path or body parameter for endpoints that operate on the caller's own data. Use the extension on `ClaimsPrincipal`:
 
-1. Decide policy: public, authenticated, or `"Admin"`.
-2. Append `.RequireAuthorization(...)` at registration time.
-3. If you need the calling user, read claims from `HttpContext.User`:
-   ```csharp
-   static async Task<IResult> Handler(HttpContext ctx, AppDbContext db)
-   {
-       var userId = int.Parse(ctx.User.FindFirstValue(ClaimTypes.NameIdentifier)!);
-       // ...
-   }
-   ```
-   Don't take the user id as a path parameter for endpoints that should only operate on the caller's own data; use the JWT claim.
+```csharp
+using net_backend.Common.Auth;
+
+[HttpGet("")]
+[Authorize]
+public async Task<ActionResult<...>> Mine(CancellationToken ct)
+{
+    var userId = User.GetRequiredUserId();
+    return Ok(await handler.ExecuteAsync(userId, ct));
+}
+```
+
+`GetRequiredUserId` reads the `NameIdentifier` claim and parses it to `int`. Throws `ForbiddenException` (which the global handler turns into 403) if the claim is missing or malformed; should never trip behind `[Authorize]`, but the throw makes the contract explicit.
+
+## Typed exception hierarchy + ProblemDetails
+
+Domain code throws typed exceptions; the global handler (`Common/Exceptions/GlobalExceptionHandler`) catches everything and emits RFC 7807 `application/problem+json`. Stack traces are dev-only.
+
+| Exception | Status | When |
+|---|---|---|
+| `NotFoundException` | 404 | Resource the client requested doesn't exist |
+| `ValidationException` | 400 | Invalid input that the request DTO annotations didn't catch (custom rules, cross-field) |
+| `ConflictException` | 409 | Duplicate row, version conflict, state conflict |
+| `ForbiddenException` | 403 | Authenticated but not allowed (e.g. acting on someone else's resource) |
+| `UnauthorizedException` | 401 | Authentication failure (bad credentials, expired token) |
+
+Each carries an `ErrorCode` (e.g. `CATEGORY_NOT_FOUND`, `EMAIL_TAKEN`, `INSUFFICIENT_STOCK`) for client-side switching, surfaced under the `errorCode` extension in the ProblemDetails response.
+
+Don't catch and rethrow in handlers; let the exception bubble. The global handler is the only place that formats error responses.
+
+## Repository pattern
+
+Each module declares an interface in `Domain/I<Aggregate>Repository.cs`. The EF implementation lives in `Infrastructure/Ef<Aggregate>Repository.cs`. Handlers depend on the interface only.
+
+Read methods that don't need a tracked entity should:
+- Use `.AsNoTracking()`
+- Project to the DTO via `Select(...)` or a shared `Expression<Func<Entity, Dto>> Projection` (see `Modules/Products/Contracts/ProductDto.Projection`)
+- `.Include(...)` only what's actually serialised; never load `byte[]` columns when the DTO doesn't need them
+
+Mutation methods load the entity (no `.AsNoTracking()`), mutate, and call `SaveChangesAsync`. Aggregates that need a transaction wrap with `db.Database.BeginTransactionAsync` (see `OrderPlacement.PlaceFromCartAsync`).
+
+## Domain services
+
+Multi-aggregate logic lives in a class named for the **business action**: never `FooService` / `FooManager` / `FooHelper`. Live examples:
+
+- `Modules/Orders/Domain/OrderPlacement`: places an order from a cart (validates client cart matches server, decrements stock with concurrency, creates order + items, clears cart, all in one transaction).
+- `Modules/Users/Domain/Authentication`: verifies email + password (constant-time bcrypt; no enumeration leak).
+
+When a handler does more than one thing across multiple aggregates, extract to a domain service. Single-aggregate logic can stay in the handler.
+
+## DTOs at the API boundary
+
+Endpoints project entities into DTOs in `Contracts/`. Don't return raw entities; serialisation can leak fields (e.g. `PasswordHash`) and EF tracking annotations.
+
+Each `*Dto.cs` exposes a `FromEntity` static factory and, where used in queries, an `Expression<Func<Entity, Dto>> Projection` for SQL-level projection. Pattern (from `ProductDto`):
+
+```csharp
+public record ProductDto(int Id, string Title, ...)
+{
+    public static Expression<Func<Product, ProductDto>> Projection =>
+        p => new ProductDto(p.Id, p.Title, ...);
+    public static ProductDto FromEntity(Product p) => new(p.Id, p.Title, ...);
+}
+```
+
+The `Projection` form is what your read-side queries should use to translate to SQL `SELECT` clauses.
+
+## Adding a new feature (recipe)
+
+1. **Pick a name** for the bounded context. Plural feature folder: `Modules/<Feature>/`.
+2. **Entity**: add to `Data/Types/<Entity>.cs` with `[Column("...")]` annotations matching the schema.
+3. **`Modules/<Feature>/Domain/I<Aggregate>Repository.cs`**: interface for persistence operations.
+4. **`Modules/<Feature>/Infrastructure/Ef<Aggregate>Repository.cs`**: EF implementation.
+5. **`Modules/<Feature>/Contracts/`**:
+   - `<Aggregate>Dto.cs` with `FromEntity` and `Projection` if used by queries.
+   - `<Verb><Aggregate>Request.cs` per write endpoint, with DataAnnotations.
+6. **`Modules/<Feature>/Application/Queries/`**: one Handler per read use case.
+7. **`Modules/<Feature>/Application/Commands/`**: one Handler per write use case.
+8. **`Modules/<Feature>/<Feature>Controller.cs`**: thin `[ApiController]` with method-level `[Authorize]`.
+9. **`Modules/<Feature>/<Feature>Module.cs`**: registers the repository, handlers, and any domain service in DI.
+10. **`ConfigureServices.AddServices`**: append `builder.Add<Feature>Feature();`.
+11. **Migration**: run `dotnet ef migrations add Add<Feature>` from `net-backend/`, review the generated DDL, commit it.
+12. **DbSet**: register the entity in `AppDbContext` with any indexes/relations.
+
+Order matters when there are cross-aggregate dependencies: declare the parent's repository interface before depending on it.
 
 ## Multi-aggregate writes wrap in a transaction
 
-Any handler that mutates more than one aggregate must run inside `db.Database.BeginTransactionAsync()`. The canonical example is `OrdersEndpoints.PlaceOrder`, which:
+Any handler that mutates more than one aggregate must run inside `db.Database.BeginTransactionAsync()`. Canonical example: `OrderPlacement.PlaceFromCartAsync` decrements products, inserts orders + order items, and removes cart items in one transaction.
 
-1. Loads cart items and validates against client-supplied data
-2. Loads the affected products and rejects if stock is insufficient
-3. Decrements `Stock`, increments `Sold`
-4. Inserts `Order` + `OrderItem` rows
-5. Removes the user's `CartItem`s
-6. Commits
-
-If any step throws, the whole thing rolls back. Don't fall back to the multiple-`SaveChanges` pattern that existed before; it can leave the DB in an inconsistent state.
+If any step throws, the whole thing rolls back. Don't fall back to multiple `SaveChanges` calls without a wrapping transaction.
 
 ## Configuration
 
-Don't touch `process.env`-style env vars directly. Read from `builder.Configuration.GetConnectionString(...)`, `builder.Configuration.GetSection(...)`, or `IOptions<T>` so dev/prod overrides via env vars (double-underscore for nested keys) work.
+Read from `builder.Configuration.GetSection(...)` or `IOptions<T>`. Don't access `Environment.GetEnvironmentVariable` outside the config layer. Env vars override appsettings via the double-underscore convention (`Cors__AllowedOrigins__0`, `Jwt__SigningKey`, `ConnectionStrings__DATABASE_URL`).
 
-The `appsettings.json` connection string points at `localhost:15432` (the local Docker DB exposed to the host). Inside the backend container, the env var `ConnectionStrings__DATABASE_URL` overrides it to `db:5432` (compose network DNS). Keep both in sync if you change the local DB credentials.
-
-CORS allowed origins come from `Cors:AllowedOrigins` (string array). Empty array = no cross-origin allowed.
+`appsettings.json` holds dev defaults. Production secrets (specifically `Jwt__SigningKey`) are set via `fly secrets set` and never live in source.
 
 ## Migrations workflow
 
-Migrations live in `Migrations/`. The baseline (`20260426151538_InitialCreate`) matches the prod schema (including computed columns). `__EFMigrationsHistory` on each environment has it marked applied; on a fresh local DB it gets inserted by `dotnet ef database update`, on a DB restored from prod dump it gets inserted manually (see root README, Path B).
-
-When adding a new migration:
+Migrations live in `Migrations/`. The baseline is `20260426151538_InitialCreate` (matches the prod schema, including computed columns).
 
 ```bash
 cd net-backend
@@ -120,22 +210,17 @@ dotnet ef migrations add <PascalCaseName>
 dotnet ef database update
 ```
 
-If a generated migration tries to recreate an existing table (because the model and the live schema disagree), don't apply it. Either reconcile the model to reality, or `dotnet ef migrations remove` and write the migration by hand.
-
-## Adding a new endpoint module
-
-1. Create `<Feature>/<Feature>Endpoints.cs` with a `Register<Feature>Endpoints(this WebApplication app)` extension.
-2. Inside the extension, `var <feature> = app.MapGroup("/<feature>");` then register routes. Add `.RequireAuthorization(...)` per the auth model.
-3. Add handlers as local static functions; project to DTOs.
-4. Call `app.Register<Feature>Endpoints();` from `ConfigureApp.Configure`.
-5. If new entities are involved: add the entity in `Data/Types/`, add the `DbSet` and `OnModelCreating` configuration in `AppDbContext`, then `dotnet ef migrations add Add<Feature>`.
+If a generated migration tries to recreate an existing table because the model and the live schema disagree, don't apply it. Reconcile the model to reality, or `dotnet ef migrations remove` and write the migration by hand.
 
 ## Things to avoid
 
-- **Don't hardcode secrets or credentials.** Use `IOptions<T>` and Fly secrets.
-- **Don't return entities directly** from endpoints; always project to a DTO.
-- **Don't use `Results.Ok(...)`** when `TypedResults.Ok(...)` is available; you lose OpenAPI metadata.
-- **Don't take `userId` as a path parameter** for endpoints that operate on the caller's own data. Read it from the JWT claim instead. Path-param userIds let any authenticated user act as anyone else.
-- **Don't add a global `app.UseExceptionHandler`** without thinking through the error-response shape; the API currently has none, so any added one becomes the contract.
-- **Don't share `Endpoints` registrations across features.** One feature, one file, one `MapGroup`.
+- **Don't put feature code outside `Modules/<Feature>/`.** Cross-cutting concerns go in `Common/` or `Configuration/`; data goes in `Data/`. Everything else is a domain feature.
+- **Don't take `userId` as a path or body parameter** for endpoints that operate on the caller's own data. `User.GetRequiredUserId()` from the JWT claim is the answer.
+- **Don't return entities directly** from controllers; always project to a DTO.
+- **Don't share routes between controllers.** One controller per feature; one `[Route("xxx")]` per controller.
+- **Don't put business logic in controllers.** Validate input, call handler, return DTO. That's it.
+- **Don't catch + rethrow in handlers.** Let typed exceptions bubble; the global handler formats them.
 - **Don't run multi-aggregate writes outside a transaction.**
+- **Don't use `Results.*` / `TypedResults.*`** in controllers: those are Minimal API. Use `Ok()`, `NotFound()`, `CreatedAtAction()`, etc. from `ControllerBase`.
+- **Don't hardcode secrets**, even temporarily. `appsettings.json` placeholders for dev are fine; prod uses Fly secrets.
+- **Don't add a generic `<Feature>Service` class.** Either it's a Handler (one use case) or a domain service named for the business action.

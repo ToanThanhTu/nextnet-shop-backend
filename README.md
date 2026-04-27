@@ -1,45 +1,73 @@
 # Next Net Shop Backend
 
-The .NET 9 Minimal API for Next Net Shop. EF Core 9 against PostgreSQL, JWT bearer auth with BCrypt password hashing, NSwag-generated OpenAPI.
+The .NET 9 modular monolith backend for Next Net Shop. EF Core 9 + PostgreSQL, JWT bearer auth, MVC controllers grouped by bounded context under `Modules/<Feature>/`, with full DDD layers (Domain / Infrastructure / Application / Contracts) per feature.
 
 > Project conventions and gotchas live in [CLAUDE.md](CLAUDE.md). This file is the user-facing tour.
 
 ## Stack
 
-- .NET 9 (Minimal API style: `MapGroup` + `MapGet`/`MapPost`/etc.)
+- .NET 9 with ASP.NET Core MVC controllers
 - Entity Framework Core 9 with `Npgsql.EntityFrameworkCore.PostgreSQL`
 - PostgreSQL 17 (local: Docker; prod: Fly Postgres `nextnetshop-db`)
-- JWT auth via `Microsoft.AspNetCore.Authentication.JwtBearer`, configuration-driven (`JwtOptions`)
+- JWT bearer auth via `Microsoft.AspNetCore.Authentication.JwtBearer`, fully config-driven (`JwtOptions`)
 - BCrypt.Net for password hashing
-- NSwag for OpenAPI generation and Swagger UI
+- NSwag for OpenAPI / Swagger UI
 - CSharpier for formatting
 
 ## Layout
 
 ```
 net-backend/
-├── Program.cs               # entry point
-├── ConfigureServices.cs     # DI: CORS, OpenAPI, EF + JWT auth + Authorization policies
-├── ConfigureApp.cs          # middleware pipeline + endpoint registration
-├── appsettings.json         # dev defaults: DB URL, Cors, Jwt
-├── Categories/
-│   ├── CategoriesEndpoints.cs
-│   └── SubCategoriesEndpoints.cs
-├── Products/ProductsEndpoints.cs
-├── Users/
-│   ├── UsersEndpoints.cs
-│   ├── JwtOptions.cs        # strongly typed Jwt config
-│   └── JwtTokenHelper.cs    # DI-injected, uses IOptions<JwtOptions>
-├── Cart/CartEndpoints.cs
-├── Orders/OrdersEndpoints.cs
+├── Configuration/                # cross-cutting service registration
+│   ├── KestrelConfiguration.cs   # port binding
+│   ├── CorsConfiguration.cs      # origin allowlist
+│   ├── OpenApiConfiguration.cs   # Swagger
+│   ├── DatabaseConfiguration.cs  # EF + Postgres URL parser
+│   ├── AuthConfiguration.cs      # JwtOptions + Authorization policies
+│   └── ExceptionHandlingConfiguration.cs
+├── Common/
+│   ├── Auth/UserContextExtensions.cs   # ClaimsPrincipal.GetRequiredUserId()
+│   └── Exceptions/                     # typed AppException hierarchy + GlobalExceptionHandler
 ├── Data/
 │   ├── AppDbContext.cs
-│   └── Types/               # entities and DTOs
-├── Migrations/              # EF Core migrations (baseline: 20260426151538_InitialCreate)
-├── seed-data.sql            # categories/subcategories/products fixture
-├── Dockerfile               # prod image (multi-stage, runtime only)
-├── Dockerfile.dev           # dev image (SDK + dotnet watch)
-└── fly.toml                 # Fly.io app config (nextnetshop-backend)
+│   └── Types/                    # entity classes
+├── Migrations/                   # EF Core migrations
+├── Modules/                      # bounded contexts
+│   ├── Categories/
+│   ├── SubCategories/
+│   ├── Cart/
+│   ├── Orders/
+│   ├── Users/
+│   └── Products/
+├── ConfigureApp.cs               # request pipeline
+├── ConfigureServices.cs          # composes Configuration + Modules
+├── Program.cs
+├── Dockerfile                    # prod multi-stage image
+├── Dockerfile.dev                # dev image (SDK + dotnet watch)
+├── seed-data.sql                 # categories/subcategories/products fixture
+└── fly.toml                      # Fly.io app config (nextnetshop-backend)
+```
+
+Each module has the same shape:
+
+```
+Modules/<Feature>/
+├── Domain/
+│   ├── I<Aggregate>Repository.cs    # contract
+│   ├── <Aggregate>.cs               # if entity has rich logic (factories, state transitions)
+│   └── <DomainService>.cs           # named for the business action; e.g. OrderPlacement, Authentication
+├── Infrastructure/
+│   └── Ef<Aggregate>Repository.cs   # EF Core impl
+├── Application/
+│   ├── Queries/
+│   │   └── <Verb><Aggregate>Handler.cs
+│   └── Commands/
+│       └── <Verb><Aggregate>Handler.cs
+├── Contracts/
+│   ├── <Aggregate>Dto.cs            # output shape, with FromEntity + Projection
+│   └── <Verb><Aggregate>Request.cs  # validated input shape
+├── <Feature>Controller.cs           # thin [ApiController]
+└── <Feature>Module.cs               # per-feature DI registration extension
 ```
 
 ## Quick start
@@ -55,7 +83,7 @@ URLs:
 - API: http://localhost:8080
 - Swagger UI: http://localhost:8080/swagger
 
-To run on the host instead (without Docker):
+Host-side dev (without Docker):
 
 ```bash
 dotnet restore
@@ -65,88 +93,96 @@ dotnet watch run            # auto-rebuild on file changes
 
 ## Auth model
 
-JWT bearer tokens are issued by `POST /users/login`. The middleware (`UseAuthentication` + `UseAuthorization`) is enabled in `ConfigureApp.cs`. Endpoints opt into auth at registration time:
+JWT bearer tokens are issued by `POST /users/login`. Authentication + Authorization middleware are enabled in `ConfigureApp.Configure`. Endpoints opt into auth via attributes:
 
-- `.RequireAuthorization("Admin")`: requires the Admin role claim. Used for catalog mutations and the admin-only user endpoints.
-- `.RequireAuthorization()`: requires any authenticated user. Used for cart and orders.
-- No call: public endpoint. Catalog reads, login, register.
+- `[Authorize(Policy = "Admin")]`: requires the Admin role claim. Catalog mutations and admin-only user endpoints.
+- `[Authorize]`: any authenticated user. Cart, orders, personal recommendations.
+- No attribute: public. Catalog reads, login, register.
 
-The "Admin" policy is defined in `ConfigureServices.AddAuthorizationPolicies`. Add new named policies there.
+The `"Admin"` policy lives in `Configuration/AuthConfiguration.AddAuthorizationPolicies`. Add new named policies there.
+
+User identity comes from the JWT `NameIdentifier` claim via `User.GetRequiredUserId()` in `Common/Auth/UserContextExtensions`. Endpoints that operate on the caller's own data never accept a `userId` in the path or body.
 
 ## Endpoints
 
-All routes are unprefixed (no `/api/`). Auth column: P = public, A = authenticated user, ★ = "Admin" policy.
+All routes unprefixed (no `/api/`). Auth column: P = public, A = authenticated user, ★ = `"Admin"` policy.
 
 ### Categories
 
 | Method | Path | Auth |
 |---|---|---|
-| GET | `/categories/` | P |
-| GET | `/categories/{id}` | P |
-| GET | `/categories/{id}/image` | P |
-| POST | `/categories/` | ★ |
-| PUT | `/categories/{id}` | ★ |
-| DELETE | `/categories/{id}` | ★ |
+| GET | `/categories` | P |
+| GET | `/categories/{id:int}` | P |
+| GET | `/categories/{id:int}/image` | P |
+| POST | `/categories` | ★ |
+| PUT | `/categories/{id:int}` | ★ |
+| DELETE | `/categories/{id:int}` | ★ |
 
 ### Subcategories
 
 | Method | Path | Auth |
 |---|---|---|
-| GET | `/subcategories/` | P |
-| GET | `/subcategories/{id}` | P |
-| GET | `/subcategories/{id}/image` | P |
-| POST | `/subcategories/` | ★ |
-| PUT | `/subcategories/{id}` | ★ |
-| DELETE | `/subcategories/{id}` | ★ |
+| GET | `/subcategories` | P |
+| GET | `/subcategories/{id:int}` | P |
+| GET | `/subcategories/{id:int}/image` | P |
+| POST | `/subcategories` | ★ |
+| PUT | `/subcategories/{id:int}` | ★ |
+| DELETE | `/subcategories/{id:int}` | ★ |
+
+Cross-aggregate validation: Create/Update verify the parent `CategoryId` exists via `ICategoryRepository`.
 
 ### Products
 
 | Method | Path | Auth |
 |---|---|---|
-| GET | `/products/all/?category&subcategory&priceMin&priceMax&sortBy&limit&page` | P |
+| GET | `/products/all?category&subcategory&priceMin&priceMax&sortBy&limit&page` | P |
+| GET | `/products/sales?...` | P |
+| GET | `/products/bestsellers?...` | P |
 | GET | `/products/top-deals` | P |
-| GET | `/products/sales/` | P |
-| GET | `/products/bestsellers/` | P |
 | GET | `/products/search?query=` | P |
-| GET | `/products/recommendations/{productId}` | P |
-| GET | `/products/personal-recommendations/{userId}` | A |
-| GET | `/products/id/{id}` | P |
+| GET | `/products/recommendations/{productId:int}` | P |
+| GET | `/products/personal-recommendations` | A |
+| GET | `/products/id/{id:int}` | P |
 | GET | `/products/slug/{slug}` | P |
-| GET | `/products/{id}/image` | P |
-| POST | `/products/` | ★ |
-| PUT | `/products/id/{id}` | ★ |
-| DELETE | `/products/id/{id}` | ★ |
+| GET | `/products/{id:int}/image` | P |
+| POST | `/products` | ★ |
+| PUT | `/products/id/{id:int}` | ★ |
+| DELETE | `/products/id/{id:int}` | ★ |
 
 ### Users
 
 | Method | Path | Auth |
 |---|---|---|
-| GET | `/users/` | ★ |
-| GET | `/users/id/{id}` | A |
+| GET | `/users` | ★ |
+| GET | `/users/{id:int}` | A |
 | POST | `/users/register` | P |
-| POST | `/users/admin/create` | ★ |
-| POST | `/users/login` (returns JWT) | P |
+| POST | `/users/admin` | ★ |
+| POST | `/users/login` (returns `{user, token}`) | P |
 
-### Cart (all require auth)
+Login throws `UnauthorizedException` (→ 401) on both unknown email and bad password; constant-time bcrypt verify means the response timing doesn't leak whether an email exists. Register/CreateAdmin throw `ConflictException` (→ 409) on duplicate email.
+
+### Cart (all `[Authorize]`)
 
 | Method | Path |
 |---|---|
-| GET | `/cart/user/{userId}` |
-| POST | `/cart/` |
-| PUT | `/cart/` |
-| DELETE | `/cart/item` |
-| DELETE | `/cart/user/{userId}` |
-| POST | `/cart/sync/{userId}` |
+| GET | `/cart` |
+| POST | `/cart/items` |
+| PUT | `/cart/items` |
+| DELETE | `/cart/items/{productId:int}` |
+| DELETE | `/cart` |
+| POST | `/cart/sync` |
 
-### Orders
+User from JWT claim. `POST /cart/items` increments quantity if the product is already in the cart; `PUT /cart/items` sets an absolute quantity. `POST /cart/sync` atomically replaces the user's cart with the supplied items (used at sign-in to merge a guest cart).
 
-| Method | Path | Auth |
+### Orders (all `[Authorize]`)
+
+| Method | Path | Extra auth |
 |---|---|---|
-| GET | `/orders/user/{userId}` | A |
-| POST | `/orders/user/{userId}` | A |
-| PUT | `/orders/` | ★ |
+| GET | `/orders` | (any user) |
+| POST | `/orders` | (any user) |
+| PUT | `/orders/{id:int}/status` | ★ |
 
-`POST /orders/user/{userId}` runs inside a single transaction: cart validation, stock decrement on each `Product`, order + items insert, cart removal. If any step fails, the whole thing rolls back.
+`POST /orders` invokes the `OrderPlacement` domain service: validates the client's cart matches the server's, decrements stock per product (rolls back on insufficient stock), creates the order with line items, clears the cart, all in one `BeginTransactionAsync`. Status updates are admin-only and validate against a whitelist of allowed values.
 
 ## Domain model
 
@@ -162,67 +198,65 @@ Entities in `Data/Types/`. Tables use lowercase plural names (set in `AppDbConte
 | `OrderItem` | `orderitems` | | `Order`, `Product` |
 | `CartItem` | `cartitems` | | `User`, `Product` |
 
-`Product.slug` and `Product.sale_price` are Postgres `GENERATED ALWAYS AS ... STORED` columns; the EF model declares them via `HasComputedColumnSql` so migrations and inserts stay in sync. Same for `Category.slug` and `SubCategory.slug`.
+Computed columns are declared via `HasComputedColumnSql(stored: true)`:
+- `Category.slug`, `SubCategory.slug`, `Product.slug` derive from `lower(replace(title, ' ', '-'))`
+- `Product.sale_price` derives from `price × (1 - sale/100)`
 
-DTOs are colocated in `Data/Types/` (suffixed `DTO.cs`). Endpoints project entities into DTOs before returning.
+DTOs are colocated in each module's `Contracts/`.
 
 ## Database migrations
 
-Migrations live in `Migrations/`. The baseline is `20260426151538_InitialCreate`. The `__EFMigrationsHistory` table on the local DB has it marked as already applied (it was inserted manually after restoring the prod dump, so EF won't try to recreate the existing tables).
+Migrations live in `Migrations/`. The baseline is `20260426151538_InitialCreate` (matches the prod schema, including computed columns).
 
 ```bash
-# Create a new migration (run from net-backend on the host with dotnet-ef installed)
-dotnet ef migrations add <Name>
-
-# Apply pending migrations to the local DB
-dotnet ef database update
-
-# List migrations and their applied status
-dotnet ef migrations list
-
-# Undo the most recent migration (only if not yet applied)
-dotnet ef migrations remove
+cd net-backend
+dotnet ef migrations add <PascalCaseName>
+dotnet ef database update           # apply pending migrations to local DB
+dotnet ef migrations list           # see what's applied
+dotnet ef migrations remove         # undo last (only if not yet applied)
 ```
 
-Install `dotnet-ef` once: `dotnet tool install --global dotnet-ef`.
+Install once: `dotnet tool install --global dotnet-ef`.
+
+When restoring from prod dump (no `__EFMigrationsHistory` table in prod), insert the baseline manually so EF doesn't try to recreate existing tables. See the root README's first-time-setup, Path B.
 
 ## Configuration
 
-All configuration is read from `appsettings.json` + env var overrides (double-underscore for nested keys, e.g. `Jwt__SigningKey`).
+Everything reads via `builder.Configuration` or `IOptions<T>`. Env vars override appsettings via the double-underscore convention.
 
 | Section | Keys | Notes |
 |---|---|---|
-| `ConnectionStrings:DATABASE_URL` | `postgres://...` URL | Dev: appsettings.json. Prod: bare `DATABASE_URL` env var (Fly secret). Compose overrides via `ConnectionStrings__DATABASE_URL`. |
-| `Cors:AllowedOrigins` | string array | Frontend origins. Empty array = locked down. |
-| `Jwt:Issuer` | string | Token `iss` claim. |
-| `Jwt:Audience` | string | Token `aud` claim. |
-| `Jwt:SigningKey` | string | HMAC-SHA256 key. **Set via Fly secret in prod**: `fly secrets set Jwt__SigningKey=$(openssl rand -hex 32)`. |
-| `Jwt:ExpirationMinutes` | int | Default 60. |
+| `ConnectionStrings:DATABASE_URL` | postgres URL | dev: appsettings.json + override `ConnectionStrings__DATABASE_URL`. Prod: bare `DATABASE_URL` env var (Fly secret). |
+| `Cors:AllowedOrigins` | string array | empty → locked down |
+| `Jwt:Issuer`, `Jwt:Audience` | strings | token claims |
+| `Jwt:SigningKey` | string | HMAC-SHA256 key. **Set via `fly secrets set Jwt__SigningKey=$(openssl rand -hex 32)` in prod.** |
+| `Jwt:ExpirationMinutes` | int | default 60 |
 
-The connection string parser uses `System.Uri` + `NpgsqlConnectionStringBuilder`, so URL-encoded passwords, `postgresql://` schemes, and missing ports are all handled. In production, `flycast` hostnames are rewritten to `internal` for Fly's 6PN routing.
+Connection-string parsing uses `System.Uri` + `NpgsqlConnectionStringBuilder` so URL-encoded passwords, missing ports, and the `postgresql://` scheme variant all work. In production, `flycast` hostnames rewrite to `internal` for Fly's 6PN routing.
 
 ## Deployment (Fly.io)
 
 ```bash
-fly deploy                  # build + push + release using net-backend/Dockerfile
+fly deploy
 fly logs
-fly ssh console
 fly status
+fly ssh console -a nextnetshop-backend -C 'printenv DATABASE_URL'
 ```
 
-Before the first deploy of a fresh app, set the secrets:
+Before the first deploy of a fresh app:
 
 ```bash
 fly secrets set Jwt__SigningKey=$(openssl rand -hex 32) -a nextnetshop-backend
 fly secrets set Cors__AllowedOrigins__0=https://your-frontend.vercel.app -a nextnetshop-backend
 ```
 
-The prod machine has `min_machines_running = 0` and `auto_stop_machines = 'stop'` (see `fly.toml`), so it suspends when idle. The first request after a quiet period takes a few seconds to wake the machine.
+The prod machine has `min_machines_running = 0` and `auto_stop_machines = 'stop'` (see `fly.toml`), so it suspends when idle. The first request after a quiet period takes a few seconds to wake.
 
 ## Troubleshooting
 
-- **`Failed to connect to 127.0.0.1:15432`** when the backend runs in Docker: appsettings.json beat the env var. The expected env var name is `ConnectionStrings__DATABASE_URL` (double underscore). Restart the backend after fixing.
-- **`Jwt:SigningKey is not configured`** at startup: missing `Jwt__SigningKey` env var or `Jwt:SigningKey` in appsettings. Set it (see Configuration above).
-- **401 from a previously-public endpoint**: the auth middleware now enforces `RequireAuthorization()`. Either log in via `/users/login` and send the bearer token, or remove the auth requirement at the endpoint registration site.
-- **Migration fails because tables already exist**: the schema came from a dump but `__EFMigrationsHistory` wasn't updated. Insert a row marking the baseline migration as applied (see [CLAUDE.md](CLAUDE.md)).
+- **`Failed to connect to 127.0.0.1:15432`** when the backend runs in Docker: the env var `ConnectionStrings__DATABASE_URL` should override `appsettings.json`. Restart the backend after fixing.
+- **`Jwt:SigningKey is not configured`** at startup: missing `Jwt__SigningKey`. Set it (see Configuration above).
+- **401 from a previously-public endpoint**: the auth middleware now enforces `[Authorize]`. Either send a bearer token or remove the attribute at the controller method.
+- **Migration fails because tables already exist**: schema came from a dump but `__EFMigrationsHistory` wasn't seeded. Insert a row marking the baseline migration as applied (see [CLAUDE.md](CLAUDE.md) and root README Path B).
 - **Hot reload didn't pick up startup changes**: edits to DI/middleware require a full restart. `docker compose restart backend`.
+- **`Cannot write DateTime with Kind=Local to PostgreSQL`**: a `DateTime` field is using `DateTime.Now` instead of `DateTime.UtcNow`. Npgsql 8+ refuses Local kind for `timestamptz` columns. Fix at the entity default.
