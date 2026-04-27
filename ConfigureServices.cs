@@ -3,6 +3,7 @@ using net_backend.Categories;
 using net_backend.Configuration;
 using net_backend.Orders;
 using net_backend.SubCategories;
+using net_backend.Users;
 
 namespace net_backend;
 
@@ -36,5 +37,6 @@ public static class ConfigureServices
         builder.AddSubCategoriesFeature();
         builder.AddCartFeature();
         builder.AddOrdersFeature();
+        builder.AddUsersFeature();
     }
 }
