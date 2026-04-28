@@ -1,6 +1,14 @@
 # Backend conventions and gotchas
 
-Stack-specific rules for `net-backend`. Project-wide conventions live in `../CLAUDE.md`.
+Stack-specific rules for `net-backend`. Project-wide conventions live in `../CLAUDE.md`. Per-module specifics (routes, business rules, dependencies) live one level deeper:
+
+- [Modules/CLAUDE.md](Modules/CLAUDE.md) — cross-module landscape (which modules exist, how they depend on each other)
+- [Modules/Categories/CLAUDE.md](Modules/Categories/CLAUDE.md)
+- [Modules/SubCategories/CLAUDE.md](Modules/SubCategories/CLAUDE.md)
+- [Modules/Products/CLAUDE.md](Modules/Products/CLAUDE.md)
+- [Modules/Cart/CLAUDE.md](Modules/Cart/CLAUDE.md)
+- [Modules/Orders/CLAUDE.md](Modules/Orders/CLAUDE.md) — includes the `OrderPlacement` domain service
+- [Modules/Users/CLAUDE.md](Modules/Users/CLAUDE.md) — includes the `Authentication` domain service and JWT issuance
 
 ## Architecture: modular monolith with DDD layers
 
